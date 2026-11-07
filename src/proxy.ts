@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/esqueci-senha", "/auth/confirm"];
+const PUBLIC_PATHS = ["/login", "/esqueci-senha", "/auth/confirm", "/auth/continuar"];
 
 /** Renova a sessão e manda quem não está logado para /login. A autorização de verdade é feita no banco (RLS). */
 export async function proxy(request: NextRequest) {

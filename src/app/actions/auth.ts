@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { flash } from "@/lib/flash";
 import { SITE_URL } from "@/lib/env";
+import { parseOtpType, safeNext } from "@/lib/auth-link";
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 
@@ -36,4 +37,16 @@ export async function setPassword(fd: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
   if (error) flash("/definir-senha", "erro", "Não foi possível salvar a senha. Abra o link do e-mail novamente.");
   redirect("/");
+}
+
+/** Confirma o link do e-mail (convite ou redefinição) quando a pessoa clica em "Continuar". */
+export async function confirmEmailLink(fd: FormData) {
+  const token_hash = str(fd, "token_hash");
+  const type = parseOtpType(fd.get("type"));
+  const bad = "Link inválido ou expirado. Peça um novo convite ou use “Esqueci minha senha”.";
+  if (!token_hash || !type) flash("/login", "erro", bad);
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({ type: type!, token_hash });
+  if (error) flash("/login", "erro", bad);
+  redirect(safeNext(fd.get("next")));
 }

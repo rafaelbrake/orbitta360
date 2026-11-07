@@ -239,11 +239,12 @@ Qualquer hospedagem Node serve; abaixo, o roteiro da **Vercel**. Pré-requisitos
    Depois de mudar uma variável, faça *Redeploy*.
 4. **Região das funções.** Se o projeto Supabase está em São Paulo, em *Settings → Functions* escolha a região *São Paulo (gru1)*: evita latência entre a Vercel e o banco.
 5. **Supabase → Authentication → URL Configuration:** *Site URL* = a URL final e, em *Redirect URLs*, `https://SUA-URL/auth/confirm` (e `http://localhost:3000/auth/confirm` para desenvolvimento). Sem isso o link do convite e o de "esqueci a senha" não funcionam.
-6. **E-mail dos convites.** O SMTP padrão do Supabase tem limite muito baixo de envios por hora; antes de convidar todos os heads configure um SMTP próprio em *Authentication → SMTP Settings* (Resend, SendGrid, o e-mail corporativo…).
-7. **Convidar os heads** em *Usuários → Novo usuário* (perfil *Head de BU* e as BUs de cada um). Cada pessoa recebe o e-mail e define a senha.
-8. **Teste de fumaça depois do deploy:** entrar como admin; abrir *Progresso* (duas ondas, prazos 12/11 e 19/11); convidar um e-mail seu como head de uma BU e abrir o link; conferir a etapa 1 (tabela editável) e *Configuração*.
-9. **Importação de Excel** pelo formulário aceita arquivos de até 4 MB (limite de corpo da requisição na Vercel).
-10. Outra hospedagem (servidor da TI): `npm run build && npm start` (porta 3000), atrás de HTTPS.
+6. **Modelos de e-mail do Supabase (obrigatório).** Em *Authentication → Email Templates*, troque os links de *Invite user* e *Reset password* pelos do passo 3 da seção 1.2 (`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/definir-senha` e o equivalente com `type=recovery`). Com o modelo padrão (`{{ .ConfirmationURL }}`) o link cai em "Link inválido ou expirado". O link do e-mail leva a uma página com o botão **Continuar**: o token só é gasto no clique, porque antivírus e filtros de e-mail corporativos abrem os links antes da pessoa e inutilizariam o convite.
+7. **SMTP dos convites.** O SMTP padrão do Supabase tem limite muito baixo de envios por hora; antes de convidar todos os heads configure um SMTP próprio em *Authentication → SMTP Settings* (Resend, SendGrid, o e-mail corporativo…).
+8. **Convidar os heads** em *Usuários → Novo usuário* (perfil *Head de BU* e as BUs de cada um). Cada pessoa recebe o e-mail e define a senha.
+9. **Teste de fumaça depois do deploy:** entrar como admin; abrir *Progresso* (duas ondas, prazos 12/11 e 19/11); convidar um e-mail seu como head de uma BU e abrir o link; conferir a etapa 1 (tabela editável) e *Configuração*.
+10. **Importação de Excel** pelo formulário aceita arquivos de até 4 MB (limite de corpo da requisição na Vercel).
+11. Outra hospedagem (servidor da TI): `npm run build && npm start` (porta 3000), atrás de HTTPS.
 
 ## 7. Identidade visual e design system
 

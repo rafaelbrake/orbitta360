@@ -1,19 +1,22 @@
-import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { parseOtpType, safeNext } from "@/lib/auth-link";
 
-/** Destino dos links de convite e de redefinição de senha enviados por e-mail. */
+/**
+ * Destino dos links de convite e de redefinição de senha enviados por e-mail.
+ * Este endereço NÃO consome o link: antivírus e filtros de e-mail abrem os links antes da pessoa,
+ * e o token vale uma vez só. Ele apenas leva à página com o botão "Continuar", que confirma de verdade.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const token_hash = searchParams.get("token_hash");
-  const type = searchParams.get("type") as EmailOtpType | null;
-  const rawNext = searchParams.get("next") ?? "/definir-senha";
-  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/definir-senha";
+  const type = parseOtpType(searchParams.get("type"));
 
   if (token_hash && type) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-    if (!error) return NextResponse.redirect(new URL(next, request.url));
+    const url = new URL("/auth/continuar", request.url);
+    url.searchParams.set("token_hash", token_hash);
+    url.searchParams.set("type", type);
+    url.searchParams.set("next", safeNext(searchParams.get("next")));
+    return NextResponse.redirect(url);
   }
   const url = new URL("/login", request.url);
   url.searchParams.set("erro", "Link inválido ou expirado. Peça um novo convite ou use “Esqueci minha senha”.");
