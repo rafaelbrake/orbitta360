@@ -1,0 +1,10 @@
+[
+  { "name": "Saúde", "wave": "2027/I", "leader": "Guga", "active": true, "sort": 1 },
+  { "name": "Varejo (inclui Atacado)", "wave": "2027/I", "leader": "Valmir", "active": true, "sort": 2 },
+  { "name": "Indústria", "wave": "2027/I", "leader": "Edenei", "active": true, "sort": 3 },
+  { "name": "Governo", "wave": "2027/I", "leader": "Mauro", "active": true, "sort": 4 },
+  { "name": "Logística/Transporte", "wave": "2027/II", "leader": null, "active": false, "sort": 5 },
+  { "name": "Educação", "wave": "2027/II", "leader": null, "active": false, "sort": 6 },
+  { "name": "Financeiro", "wave": "2027/II", "leader": null, "active": false, "sort": 7 },
+  { "name": "Serviço (Construção, Tecnologia)", "wave": "2027/II", "leader": null, "active": false, "sort": 8 }
+]

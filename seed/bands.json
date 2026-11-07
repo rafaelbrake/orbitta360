@@ -1,0 +1,6 @@
+[
+  { "id": 1, "code": "alta", "label": "Prioridade alta", "min_score": 85, "max_score": 100, "direction": "Candidata a campanha GTM prioritária", "sort": 1 },
+  { "id": 2, "code": "potencial", "label": "Prioridade potencial", "min_score": 70, "max_score": 84, "direction": "Avaliar diferenciação, sinergias e potencial de melhoria", "sort": 2 },
+  { "id": 3, "code": "secundaria", "label": "Prioridade secundária", "min_score": 55, "max_score": 69, "direction": "Venda oportunística, sem campanha dedicada inicialmente", "sort": 3 },
+  { "id": 4, "code": "baixa", "label": "Baixa prioridade", "min_score": 20, "max_score": 54, "direction": "Manter no portfólio, sem foco de prospecção, marketing etc.", "sort": 4 }
+]

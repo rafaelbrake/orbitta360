@@ -1,0 +1,207 @@
+{
+  "_aviso": "OFERTAS FICTÍCIAS apenas para testar a plataforma. Os heads cadastram ou importam as ofertas reais.",
+  "PRT": [
+    {
+      "code": "OF-01",
+      "name": "Outsourcing de impressão",
+      "description": "Gestão completa do parque de impressão",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 180000
+    },
+    {
+      "code": "OF-02",
+      "name": "Digitalização de documentos",
+      "description": "Captura e indexação de documentos",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 90000
+    },
+    {
+      "code": "OF-03",
+      "name": "Gestão de impressão corporativa",
+      "description": "Software e governança de impressão",
+      "offer_type": "Software",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 120000
+    }
+  ],
+  "LBL": [
+    {
+      "code": "OF-01",
+      "name": "Etiquetas para rastreabilidade",
+      "description": "Etiquetas e impressoras industriais",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 150000
+    },
+    {
+      "code": "OF-02",
+      "name": "Identificação de ativos",
+      "description": "Etiquetagem de patrimônio",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 70000
+    }
+  ],
+  "ITD": [
+    {
+      "code": "OF-01",
+      "name": "Device as a Service",
+      "description": "Estações de trabalho por assinatura",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 400000
+    },
+    {
+      "code": "OF-02",
+      "name": "Infraestrutura de rede",
+      "description": "Switches, Wi-Fi e cabeamento",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 250000
+    }
+  ],
+  "ITS": [
+    {
+      "code": "OF-01",
+      "name": "Cloud gerenciada",
+      "description": "Migração e operação em nuvem",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 500000
+    },
+    {
+      "code": "OF-02",
+      "name": "Service desk",
+      "description": "Atendimento N1/N2",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 300000
+    },
+    {
+      "code": "OF-03",
+      "name": "Backup e continuidade",
+      "description": "Backup gerenciado e DR",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 200000
+    }
+  ],
+  "CSX": [
+    {
+      "code": "OF-01",
+      "name": "Plataforma de atendimento omnichannel",
+      "description": "Atendimento unificado",
+      "offer_type": "Software",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 350000
+    },
+    {
+      "code": "OF-02",
+      "name": "Automação de atendimento com IA",
+      "description": "Bots e assistentes virtuais",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 280000
+    }
+  ],
+  "RTX": [
+    {
+      "code": "OF-01",
+      "name": "Inteligência de preços",
+      "description": "Monitoramento e precificação",
+      "offer_type": "Software",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 220000
+    },
+    {
+      "code": "OF-02",
+      "name": "Gestão de loja conectada",
+      "description": "Operação de PDV e loja",
+      "offer_type": "Software",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 260000
+    }
+  ],
+  "PRO": [
+    {
+      "code": "OF-01",
+      "name": "Automação de processos (RPA)",
+      "description": "Robôs de software",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 200000
+    },
+    {
+      "code": "OF-02",
+      "name": "Gestão eletrônica de documentos",
+      "description": "GED e workflow",
+      "offer_type": "Software",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 160000
+    }
+  ],
+  "DAT": [
+    {
+      "code": "OF-01",
+      "name": "Plataforma de dados",
+      "description": "Data lake e governança",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 600000
+    },
+    {
+      "code": "OF-02",
+      "name": "IA aplicada ao negócio",
+      "description": "Modelos e agentes sob medida",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 450000
+    }
+  ],
+  "BCO": [
+    {
+      "code": "OF-01",
+      "name": "Consultoria de transformação digital",
+      "description": "Diagnóstico e roadmap",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 300000
+    },
+    {
+      "code": "OF-02",
+      "name": "Consultoria tributária e fiscal",
+      "description": "Reforma tributária e conciliação fiscal",
+      "offer_type": "Serviço",
+      "revenue_model": "Pontual",
+      "ticket_medio": 250000
+    }
+  ],
+  "CYB": [
+    {
+      "code": "OF-01",
+      "name": "SOC gerenciado",
+      "description": "Monitoramento e resposta 24x7",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 480000
+    },
+    {
+      "code": "OF-02",
+      "name": "Proteção de endpoints",
+      "description": "EDR e gestão de endpoints",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 220000
+    },
+    {
+      "code": "OF-03",
+      "name": "Gestão de vulnerabilidades",
+      "description": "Varredura e priorização de correções",
+      "offer_type": "Serviço",
+      "revenue_model": "Recorrente",
+      "ticket_medio": 150000
+    }
+  ]
+}

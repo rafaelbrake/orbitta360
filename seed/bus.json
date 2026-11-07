@@ -1,0 +1,12 @@
+[
+  { "code": "PRT", "name": "Print Solutions", "sort": 1 },
+  { "code": "LBL", "name": "Label Solutions", "sort": 2 },
+  { "code": "ITD", "name": "IT Devices", "sort": 3 },
+  { "code": "ITS", "name": "IT Solutions", "sort": 4 },
+  { "code": "CSX", "name": "Customer Experience", "sort": 5 },
+  { "code": "RTX", "name": "Retail Experience", "sort": 6 },
+  { "code": "PRO", "name": "Process Solutions", "sort": 7 },
+  { "code": "DAT", "name": "Data & AI Solutions", "sort": 8 },
+  { "code": "BCO", "name": "Business Consulting", "sort": 9 },
+  { "code": "CYB", "name": "Cybersecurity Solutions", "sort": 10 }
+]

@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# credenciais de exemplo geradas por scripts/seed-demo.ts
+.demo-users.txt
+!.env.example

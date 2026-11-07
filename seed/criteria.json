@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1, "name": "Relevância da dor no segmento", "weight": 30,
+    "question": "Esse problema realmente tira o sono dos gestores do segmento?",
+    "rubric": {
+      "1": "Dor pouco relevante, pontual ou raramente mencionada pelos clientes.",
+      "2": "Dor existente, mas secundária, sem urgência ou prioridade de investimento.",
+      "3": "Dor recorrente, reconhecida pelo cliente, mas que compete com outras prioridades.",
+      "4": "Dor importante, frequente, com impacto financeiro, operacional ou de risco claramente identificado.",
+      "5": "Dor crítica e urgente, diretamente ligada a receita, margem, produtividade, continuidade operacional ou exigência regulatória."
+    }
+  },
+  {
+    "id": 2, "name": "Potencial de receita e margem", "weight": 25,
+    "question": "A oferta tem capacidade de gerar resultado relevante e rentável para a Selbetti?",
+    "rubric": {
+      "1": "Ticket baixo, margem insuficiente e potencial de escala limitado.",
+      "2": "Receita e margem modestas, com poucas oportunidades identificadas.",
+      "3": "Potencial comercial intermediário, com rentabilidade adequada.",
+      "4": "Receita relevante, boa margem e possibilidade de expansão na carteira.",
+      "5": "Alto potencial de receita e margem, mercado endereçável relevante e forte capacidade de recorrência ou expansão."
+    }
+  },
+  {
+    "id": 3, "name": "Diferenciação competitiva", "weight": 20,
+    "question": "Por que o cliente escolheria a Selbetti e não outro fornecedor?",
+    "rubric": {
+      "1": "Oferta comoditizada, com competição essencialmente por preço.",
+      "2": "Pouca diferenciação; existem muitos fornecedores equivalentes.",
+      "3": "Diferenciais comerciais, técnicos ou de atendimento reconhecíveis.",
+      "4": "Diferenciais relevantes e comprováveis, com boa capacidade de competir.",
+      "5": "Vantagem competitiva clara, difícil de replicar e sustentada por evidências, integração ou capacidade de entrega."
+    }
+  },
+  {
+    "id": 4, "name": "Facilidade de abertura pelo AM", "weight": 15,
+    "question": "Um AM consegue identificar a oportunidade e despertar o interesse do cliente numa conversa de 30 minutos?",
+    "rubric": {
+      "1": "Exige conhecimento técnico profundo até para identificar a oportunidade.",
+      "2": "Demanda diagnóstico especializado antes de iniciar uma conversa relevante.",
+      "3": "O AM consegue identificar alguns gatilhos, mas precisa de apoio frequente.",
+      "4": "Dor clara, perguntas simples e decisor identificável; o AM consegue gerar uma reunião qualificada.",
+      "5": "Abordagem muito simples, dor facilmente reconhecida e gatilhos claros; o AM consegue identificar e encaminhar a oportunidade com autonomia."
+    }
+  },
+  {
+    "id": 5, "name": "Cases e prontidão de entrega", "weight": 10,
+    "question": "Conseguimos comprovar resultados no segmento e entregar com segurança agora?",
+    "rubric": {
+      "1": "Oferta ainda não estruturada, sem cases e sem capacidade de entrega validada.",
+      "2": "Oferta em estruturação, com referências limitadas e dependências importantes.",
+      "3": "Oferta comercializável, entrega viável e algumas referências, mesmo que de outros segmentos.",
+      "4": "Oferta madura, equipe preparada e cases relevantes com resultados demonstráveis.",
+      "5": "Oferta consolidada, capacidade de escala, cases no segmento e indicadores de resultados comprovados."
+    }
+  }
+]
