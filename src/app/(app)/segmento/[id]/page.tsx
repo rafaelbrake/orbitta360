@@ -98,6 +98,11 @@ export default async function SegmentoPage({ params, searchParams }: { params: P
         </Notice>
       )}
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Link href={`/reuniao/${id}`} className="btn"><Icon name="monitoring" size={18} />Modo reunião (projetar)</Link>
+        <span className="text-sm text-(--ink-3)">Tela cheia para a reunião: estratégia, ofertas em Foco e fechamento.</span>
+      </div>
+
       {counts.foco + counts.apoio > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Link href={`/book/${id}`} target="_blank" className="btn btn-primary"><Icon name="download" size={18} />Abrir o book para imprimir (PDF)</Link>

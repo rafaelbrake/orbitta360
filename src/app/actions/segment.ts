@@ -123,3 +123,38 @@ export async function resetLeaderPitch(fd: FormData) {
   revalidatePath(`/segmento/${segmentId}`, "layout");
   flash(back, "ok", "Voltou ao texto do head.");
 }
+
+/* ---------- Modo reunião ---------- */
+
+/** Ajuste pedido na reunião para uma oferta que já tem nível. */
+export async function saveReviewNote(segmentId: string, offerId: string, note: string): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("segment_priorities").update({ review_note: cleanNote(note), review_done: false }).eq("segment_id", segmentId).eq("offer_id", offerId).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: "Defina primeiro o nível da oferta (ou a versão final está travada)." };
+  return { ok: true, savedAt: new Date().toISOString() };
+}
+
+/** Marca (ou desmarca) o ajuste pedido como feito. */
+export async function setReviewDone(segmentId: string, offerId: string, done: boolean): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("segment_priorities").update({ review_done: done === true }).eq("segment_id", segmentId).eq("offer_id", offerId).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return { ok: true, savedAt: new Date().toISOString() };
+}
+
+/** Anotações gerais da reunião do segmento (atualiza e, se ainda não há linha, insere). */
+export async function saveMeetingNotes(segmentId: string, notes: string): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId)) return { ok: false, error: "Dados inválidos." };
+  const row = { meeting_notes: cleanText(notes) };
+  const up = await supabase.from("segment_strategies").update(row).eq("segment_id", segmentId).select("segment_id");
+  if (up.error) return { ok: false, error: friendly(up.error) };
+  if (up.data?.length) return { ok: true, savedAt: new Date().toISOString() };
+  const ins = await supabase.from("segment_strategies").insert({ segment_id: segmentId, ...row }).select("segment_id");
+  if (ins.error) return { ok: false, error: ins.error.code === "23505" ? BLOCKED : friendly(ins.error) };
+  return { ok: true, savedAt: new Date().toISOString() };
+}

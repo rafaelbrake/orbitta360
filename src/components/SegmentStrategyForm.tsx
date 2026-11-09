@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveStrategy } from "@/app/actions/segment";
 import { SaveIndicator, useAutosave } from "@/components/useAutosave";
 
 /** Tese do segmento e mensagem aos vendedores. Salva sozinha. */
-export function SegmentStrategyForm({ segmentId, initial, readOnly }: { segmentId: string; initial: { thesis: string; message: string }; readOnly: boolean }) {
+export function SegmentStrategyForm({ segmentId, initial, readOnly, onChange }: { segmentId: string; initial: { thesis: string; message: string }; readOnly: boolean; onChange?: (v: { thesis: string; message: string }) => void }) {
   const [v, setV] = useState(initial);
+  useEffect(() => { onChange?.(v); }, [v, onChange]);
   const { status, saveNow } = useAutosave(v, (values) => saveStrategy(segmentId, values), { disabled: readOnly });
   return (
     <section className="card !p-5" aria-label="Estratégia do segmento">

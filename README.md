@@ -61,6 +61,8 @@ Abra **SQL Editor** no Supabase e execute, **nesta ordem**, o conteúdo de:
 
 12. [`supabase/migrations/0012_segment_pitches.sql`](supabase/migrations/0012_segment_pitches.sql) — **pitch editado pelo líder**: o líder edita uma cópia do pitch de cada oferta no segmento dele (o texto escrito pelo head fica intacto em `pitches`); o book usa a versão do líder quando existe e, senão, a do head. A edição segue a trava da versão final. Não altera dados existentes.
 
+13. [`supabase/migrations/0013_meeting_mode.sql`](supabase/migrations/0013_meeting_mode.sql) — **modo reunião**: ajuste pedido por oferta (com "feito") e anotações gerais do segmento, sob a mesma trava da versão final. Não altera dados existentes.
+
 Quem já rodou as anteriores aplica só as novas.
 
 #### Ondas de entrega dos heads
@@ -83,6 +85,8 @@ O produto vira o nome da oferta, a BU é reconhecida pelo nome e o ID (OF-NN) é
 Os Diretores Comerciais lideram **regiões** (Sul, SP, demais estados; Governo atua no país todo) e, cada um, **um segmento** na consolidação final. O trabalho tem duas partes:
 1. **Visão da região** (*Minha região*, no menu do diretor): para cada segmento, um recado curto sobre *o que funciona* e *o que não funciona* na região (salva sozinho). Os *Destaques por oferta* (Manter / Mudar / Treinar) continuam disponíveis como complemento. O diretor envia tudo de uma vez; basta ter a visão de um segmento.
 2. **Consolidação do segmento** (*Meu segmento*, no menu do líder; a Diretoria acessa por *Consolidação por segmento*): o líder vê **ao vivo** o ranking do segmento (todas as BUs), a visão regional de todos os diretores e os destaques por oferta; escreve a estratégia (tese e mensagem aos vendedores); define o nível de cada oferta (**Foco**, **Apoio**, **Fora do radar**; Foco tem limite, padrão 5, que a Diretoria muda em *Segmentos*). *Aplicar sugestão* preenche os níveis a partir das faixas dos heads sem mexer no que o líder já decidiu. Ao terminar, o líder (ou a Diretoria) **trava a versão final**; só a Diretoria reabre. O líder também **edita o pitch** de cada oferta (uma cópia do segmento; o texto do head fica guardado e dá para voltar a ele) e abre o **book de vendas** em página de impressão (A4): capa, estratégia, resumo, uma página por oferta em Foco com o pitch completo, versão resumida das de Apoio, as ofertas fora do radar e o que dizem as regiões. No diálogo de impressão do navegador, escolha *Salvar como PDF*.
+
+**Modo reunião** (botão *Modo reunião (projetar)* no painel do segmento; endereço `/reuniao/<segmento>`): o segmento em tela cheia para a reunião de consolidação. Sequência: abertura, estratégia (editável na hora), **mesa de decisão** (todas as ofertas com o nível), **uma tela por oferta em Foco** com o pitch, o que disseram as regionais, o nível e o campo *Ajuste pedido na reunião* (com *Ajuste feito*), ofertas de apoio, visão das regiões e **fechamento** (ajustes pendentes, anotações da reunião, abrir o book e travar a versão final). Setas ← → (ou Espaço) navegam, **F** liga a tela cheia, e a página lembra a tela atual no endereço (`?s=`). Mudar o nível de uma oferta muda as telas na hora (quem entra em Foco ganha a sua), e o limite de Foco continua valendo. Quem opera é o líder do segmento ou a Diretoria Corporativa; os heads acompanham pela projeção.
 
 O líder é cadastrado em *Segmentos → editar → Líder(es) do segmento* e pode ser qualquer usuário (o líder de Governo continua head da PRT). Para o diretor aparecer com a regional certa, preencha *Regional* no cadastro dele (Sul, SP, Demais estados, Nacional).
 

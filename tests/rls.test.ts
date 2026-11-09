@@ -76,6 +76,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0010_segment_leaders_regional_views.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0011_segment_consolidation.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0012_segment_pitches.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0013_meeting_mode.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1155,5 +1156,49 @@ describe("pitch editado pelo líder: cópia por segmento, sem tocar no texto do 
     expect(await as(ID.admin, "update segment_pitches set descricao='admin tarde' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
     await as(ID.admin, "select reopen_segment($1)", [saude()]);
     expect(await as(ID.diretor, "update segment_pitches set descricao='depois' where offer_id=$1 returning 1", [offer])).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Modo reunião (migration 0013)                                       */
+/* ------------------------------------------------------------------ */
+describe("modo reunião: ajustes pedidos e anotações, sob a mesma trava da consolidação", () => {
+  // Sul (ID.diretor) lidera Saúde · SP (ID.diretor2) lidera Varejo · Norte (ID.diretor3) não lidera
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  let offer = "";
+
+  it("o líder registra o ajuste pedido e marca como feito; quem não lidera o segmento não mexe", async () => {
+    await sup("delete from segment_leaders where segment_id in ($1,$2)", [saude(), varejo()]);
+    await sup("insert into segment_leaders values ($1,$2),($3,$4)", [saude(), ID.diretor, varejo(), ID.diretor2]);
+    await sup("update segment_strategies set status='draft', finalized_at=null where segment_id in ($1,$2)", [saude(), varejo()]);
+    offer = (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Oferta da reunião') returning id", [buId.LBL]))[0].id;
+    await as(ID.diretor, "insert into segment_priorities (segment_id,offer_id,level) values ($1,$2,'foco')", [saude(), offer]);
+    expect(await as(ID.diretor, "update segment_priorities set review_note='Trocar o case por um de indústria' where segment_id=$1 and offer_id=$2 returning 1", [saude(), offer])).toHaveLength(1);
+    const r = (await as<{ review_note: string; review_done: boolean }>(ID.diretor, "select review_note, review_done from segment_priorities where offer_id=$1", [offer]))[0];
+    expect(r).toEqual({ review_note: "Trocar o case por um de indústria", review_done: false });
+    expect(await as(ID.diretor, "update segment_priorities set review_done=true where segment_id=$1 and offer_id=$2 returning 1", [saude(), offer])).toHaveLength(1);
+    expect(await as(ID.diretor2, "update segment_priorities set review_note='invasor' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    expect(await as(ID.diretor3, "update segment_priorities set review_note='invasor' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    expect(await as(ID.diretor3, "select review_note from segment_priorities")).toHaveLength(0);
+  });
+
+  it("anotações gerais da reunião: o líder grava (atualizar e inserir); o limite de Foco e o status continuam só da Diretoria", async () => {
+    // linha ainda não existe no segmento de Varejo → inserir; depois atualizar
+    await sup("delete from segment_strategies where segment_id=$1", [varejo()]);
+    expect(await as(ID.diretor2, "insert into segment_strategies (segment_id,meeting_notes) values ($1,'decidimos X') returning 1", [varejo()])).toHaveLength(1);
+    expect(await as(ID.diretor2, "update segment_strategies set meeting_notes='decidimos Y' where segment_id=$1 returning 1", [varejo()])).toHaveLength(1);
+    expect((await as<{ meeting_notes: string }>(ID.diretor2, "select meeting_notes from segment_strategies where segment_id=$1", [varejo()]))[0].meeting_notes).toBe("decidimos Y");
+    await fails(ID.diretor2, "update segment_strategies set foco_limit=50 where segment_id=$1", [varejo()]);
+    await fails(ID.diretor2, "update segment_strategies set status='final' where segment_id=$1", [varejo()]);
+    expect(await as(ID.diretor3, "update segment_strategies set meeting_notes='x' where segment_id=$1 returning 1", [varejo()])).toHaveLength(0);
+  });
+
+  it("depois da versão final nada da reunião muda; a Diretoria reabre", async () => {
+    await as(ID.diretor, "select finalize_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update segment_priorities set review_note='tarde' where segment_id=$1 and offer_id=$2 returning 1", [saude(), offer])).toHaveLength(0);
+    expect(await as(ID.diretor, "update segment_strategies set meeting_notes='tarde' where segment_id=$1 returning 1", [saude()])).toHaveLength(0);
+    await as(ID.admin, "select reopen_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update segment_priorities set review_note='de novo' where segment_id=$1 and offer_id=$2 returning 1", [saude(), offer])).toHaveLength(1);
   });
 });
