@@ -90,6 +90,7 @@ Os Diretores Comerciais lideram **regiões** (Sul, SP, demais estados; Governo a
 
 **A Diretoria Corporativa acompanha e ajuda** (como já faz com as BUs):
 - *Diretores regionais* (menu da Diretoria): a lista dos diretores com a visão regional (segmentos preenchidos), os destaques, o status e a última atualização. Ao **abrir** um diretor, a Diretoria vê a visão dele por segmento e os destaques, **pode editar em nome dele(a)** (inclusive depois do envio, para ajudar no preenchimento) e reabrir o envio. Tudo fica na auditoria.
+- Na página do diretor há o botão **Novo destaque em nome do diretor**: a Diretoria cria o destaque por oferta (Manter / Mudar / Treinar) para ele(a), que fica com a regional e a autoria do diretor; o diretor vê e edita normalmente. Também dá para editar e excluir os destaques dele dali.
 - *Consolidação por segmento* (menu da Diretoria) e o bloco *Líderes de segmento* do *Progresso*: para cada segmento, o andamento das avaliações dos heads, os níveis definidos (Foco x de limite, Apoio, Fora do radar), se a tese e a mensagem foram escritas, as visões e destaques das regionais, os ajustes pendentes da reunião e o status (rascunho ou versão final). Dali a Diretoria abre qualquer segmento (ou o modo reunião) e edita como o líder.
 
 O líder é cadastrado em *Segmentos → editar → Líder(es) do segmento* e pode ser qualquer usuário (o líder de Governo continua head da PRT). Para o diretor aparecer com a regional certa, preencha *Regional* no cadastro dele (Sul, SP, Demais estados, Nacional).

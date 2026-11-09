@@ -13,18 +13,29 @@ const TYPE_ICON = { manter: "task_alt", mudar: "tune", treinar: "target" } as co
 
 export default async function NewMmtRecordPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
-  const { supabase, profile } = await requireProfile("diretor");
-  const [config, editable] = await Promise.all([loadConfig(supabase), supabase.rpc("mmt_editable", { p_author: profile.id })]);
-  if (editable.data !== true) redirect("/diretor");
+  const { supabase, profile } = await requireProfile("diretor", "admin");
+  // A Diretoria cria em nome de um diretor: o endereço traz ?para=<id do diretor>
+  const para = typeof sp.para === "string" && /^[0-9a-f-]{36}$/i.test(sp.para) ? sp.para : null;
+  if (profile.role === "admin" && !para) redirect("/admin/diretores");
+  const { data: target } = profile.role === "admin" && para
+    ? await supabase.from("profiles").select("id,full_name,email,regional,role,active").eq("id", para).maybeSingle()
+    : { data: null };
+  if (profile.role === "admin" && (!target || target.role !== "diretor")) redirect("/admin/diretores");
+  const authorId = profile.role === "admin" ? para! : profile.id;
+  const backHref = profile.role === "admin" ? `/admin/diretores/${authorId}` : "/diretor";
+  const [config, editable] = await Promise.all([loadConfig(supabase), supabase.rpc("mmt_editable", { p_author: authorId })]);
+  if (editable.data !== true) redirect(backHref);
   const segments = (await allowedSegments(supabase, profile, config)).filter((s) => s.active);
+  const targetName = target ? target.full_name || target.email : null;
 
   return (
     <div className="max-w-3xl">
       <Flash ok={sp.ok} erro={sp.erro} />
-      <BackLink href="/diretor">Meus registros</BackLink>
-      <PageHeader title="Novo registro" subtitle="Escolha o tipo, o segmento e a BU. Em seguida você preenche os detalhes; o rascunho é salvo automaticamente." />
+      <BackLink href={backHref}>{targetName ? `Voltar a ${targetName}` : "Meus registros"}</BackLink>
+      <PageHeader title="Novo registro" subtitle={targetName ? `Em nome de ${targetName}${target?.regional ? ` (${target.regional})` : ""}. Escolha o tipo, o segmento e a BU; em seguida preencha os detalhes. O rascunho é salvo automaticamente.` : "Escolha o tipo, o segmento e a BU. Em seguida você preenche os detalhes; o rascunho é salvo automaticamente."} />
 
       <form action={createMmtRecord}>
+        {targetName && <input type="hidden" name="author_id" value={authorId} />}
         <fieldset className="card !p-5">
           <legend className="sr-only">Tipo de registro</legend>
           <h2 className="mb-4">Tipo</h2>
@@ -58,7 +69,7 @@ export default async function NewMmtRecordPage({ searchParams }: { searchParams:
           <p className="mt-3 text-xs text-(--ink-3)">A oferta (opcional), a prioridade e os demais campos você define na próxima tela.</p>
         </section>
 
-        <FormFooter cancelHref="/diretor">
+        <FormFooter cancelHref={backHref}>
           <SubmitButton pendingLabel="Criando…">Continuar<Icon name="arrow_forward" size={18} /></SubmitButton>
         </FormFooter>
       </form>

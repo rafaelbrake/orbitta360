@@ -10,8 +10,10 @@ import { Notice } from "@/components/ui";
 
 type Offer = { id: string; code: string | null; name: string };
 
-export function MmtForm({ id, type, regional, initial, segments, bus, initialOffers, readOnly }: {
+export function MmtForm({ id, type, regional, initial, segments, bus, initialOffers, readOnly, backHref = "/diretor", backLabel = "← Voltar aos registros" }: {
   id: string; type: MmtType; regional: string | null; initial: MmtValues; segments: Segment[]; bus: Bu[]; initialOffers: Offer[]; readOnly: boolean;
+  /** para onde volta (a Diretoria volta para a página do diretor) */
+  backHref?: string; backLabel?: string;
 }) {
   const spec = MMT_SPEC[type];
   const [v, setV] = useState<MmtValues>(initial);
@@ -104,7 +106,7 @@ export function MmtForm({ id, type, regional, initial, segments, bus, initialOff
         </div>
       </section>
 
-      <Link href="/diretor" className="btn" onClick={() => void saveNow()}>← Voltar aos registros</Link>
+      <Link href={backHref} className="btn" onClick={() => void saveNow()}>{backLabel}</Link>
     </div>
   );
 }

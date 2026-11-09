@@ -17,20 +17,29 @@ const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]
 
 /** Cria o registro (rascunho) e abre a tela de edição. */
 export async function createMmtRecord(fd: FormData) {
-  const { supabase } = await requireProfile("diretor", "admin");
+  const { supabase, profile } = await requireProfile("diretor", "admin");
   const type = String(fd.get("type")) as MmtType;
   const segmentId = fd.get("segment_id");
   const buId = fd.get("bu_id");
+  // A Diretoria Corporativa pode criar o registro em nome de um diretor (para ajudar no preenchimento).
+  const para = String(fd.get("author_id") ?? "");
+  const onBehalf = profile.role === "admin" && isUuid(para);
+  const back = onBehalf ? `/diretor/registro/novo?para=${para}` : "/diretor/registro/novo";
   if (!MMT_TYPES.includes(type) || !isUuid(segmentId) || !isUuid(buId)) {
-    flash("/diretor/registro/novo", "erro", "Escolha o tipo, o segmento e a BU para criar o registro.");
+    flash(back, "erro", "Escolha o tipo, o segmento e a BU para criar o registro.");
+  }
+  if (onBehalf) {
+    const { data: target } = await supabase.from("profiles").select("id,role,active").eq("id", para).maybeSingle();
+    if (!target || target.role !== "diretor" || !target.active) flash("/admin/diretores", "erro", "Diretor não encontrado.");
   }
   const { data, error } = await supabase
     .from("mmt_records")
-    .insert({ type, segment_id: segmentId, bu_id: buId })
+    .insert({ type, segment_id: segmentId, bu_id: buId, ...(onBehalf ? { author_id: para } : {}) })
     .select("id")
     .single();
-  if (error || !data) flash("/diretor/registro/novo", "erro", error ? friendly(error) : "Não foi possível criar o registro.");
+  if (error || !data) flash(back, "erro", error ? friendly(error) : "Não foi possível criar o registro.");
   revalidatePath("/diretor");
+  revalidatePath("/admin/diretores", "layout");
   redirect(`/diretor/registro/${data.id}`);
 }
 
@@ -62,14 +71,17 @@ export async function saveMmtRecord(id: string, v: MmtValues): Promise<SaveResul
 }
 
 export async function deleteMmtRecord(fd: FormData) {
-  const { supabase } = await requireProfile("diretor", "admin");
+  const { supabase, profile } = await requireProfile("diretor", "admin");
   const id = fd.get("id");
   if (!isUuid(id)) flash("/diretor", "erro", "Registro inválido.");
+  const { data: rec } = await supabase.from("mmt_records").select("author_id").eq("id", id as string).maybeSingle();
+  const back = profile.role === "admin" && rec ? `/admin/diretores/${rec.author_id}` : "/diretor"; // a Diretoria volta para o diretor
   const { data, error } = await supabase.from("mmt_records").delete().eq("id", id as string).select("id");
-  if (error) flash("/diretor", "erro", friendly(error));
-  if (!data?.length) flash("/diretor", "erro", BLOCKED);
+  if (error) flash(back, "erro", friendly(error));
+  if (!data?.length) flash(back, "erro", BLOCKED);
   revalidatePath("/diretor");
-  flash("/diretor", "ok", "Registro excluído.");
+  revalidatePath("/admin/diretores", "layout");
+  flash(back, "ok", "Registro excluído.");
 }
 
 export async function submitMmt(fd?: FormData) {

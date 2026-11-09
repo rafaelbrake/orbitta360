@@ -44,6 +44,8 @@ export default async function MmtRecordPage({ params }: { params: Promise<{ id: 
       bus={config.bus.filter((b) => b.active || b.id === rec.bu_id)}
       initialOffers={(offers.data ?? []) as { id: string; code: string | null; name: string }[]}
       readOnly={editable.data !== true}
+      backHref={profile.role === "admin" ? `/admin/diretores/${rec.author_id}` : "/diretor"}
+      backLabel={profile.role === "admin" ? "← Voltar ao diretor" : "← Voltar aos registros"}
       initial={{
         segment_id: rec.segment_id, bu_id: rec.bu_id, offer_id: rec.offer_id, priority: rec.priority,
         headline: rec.headline ?? "", evidence: rec.evidence ?? "", reason: rec.reason ?? "", action: rec.action ?? "", indicator: rec.indicator ?? "",

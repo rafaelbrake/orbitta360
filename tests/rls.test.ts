@@ -1235,3 +1235,27 @@ describe("Diretoria Corporativa escreve a visão regional em nome do diretor", (
     expect(await as(ID.diretor3, "update regional_views set works='voltei' where segment_id=$1 returning 1", [saude()])).toHaveLength(1);
   });
 });
+
+describe("Diretoria cria o destaque (Manter / Mudar / Treinar) em nome do diretor", () => {
+  it("o registro nasce com o diretor como autor e a regional dele; o diretor enxerga e edita; head e outro diretor não criam em nome de ninguém", async () => {
+    await sup("update profiles set role='diretor', regional='Norte' where id=$1", [ID.diretor3]);
+    await sup("delete from mmt_submissions where user_id=$1", [ID.diretor3]);
+    const r = await as<{ id: string }>(ID.admin, "insert into mmt_records (author_id,type,segment_id,bu_id) values ($1,'manter',$2,$3) returning id", [ID.diretor3, segId["Saúde"], buId.CYB]);
+    expect(r).toHaveLength(1);
+    const row = (await sup<{ author_id: string; regional: string }>("select author_id, regional from mmt_records where id=$1", [r[0].id]))[0];
+    expect(row).toEqual({ author_id: ID.diretor3, regional: "Norte" });
+    expect(await as(ID.diretor3, "update mmt_records set headline='ajustado pelo diretor' where id=$1 returning 1", [r[0].id])).toHaveLength(1);
+    expect(await as(ID.admin, "delete from mmt_records where id=$1 returning 1", [r[0].id])).toHaveLength(1);
+    await fails(ID.headCYB, "insert into mmt_records (author_id,type,segment_id,bu_id) values ($1,'manter',$2,$3)", [ID.diretor3, segId["Saúde"], buId.CYB]);
+    await fails(ID.diretor, "insert into mmt_records (author_id,type,segment_id,bu_id) values ($1,'manter',$2,$3)", [ID.diretor3, segId["Saúde"], buId.CYB]);
+  });
+
+  it("depois do envio do diretor a Diretoria ainda cria (para ajudar) e o diretor não edita", async () => {
+    await sup("insert into mmt_submissions (user_id,status,submitted_at) values ($1,'submitted',now()) on conflict (user_id) do update set status='submitted'", [ID.diretor3]);
+    const r = await as<{ id: string }>(ID.admin, "insert into mmt_records (author_id,type,segment_id,bu_id) values ($1,'mudar',$2,$3) returning id", [ID.diretor3, segId["Saúde"], buId.CYB]);
+    expect(r).toHaveLength(1);
+    expect(await as(ID.diretor3, "update mmt_records set headline='tarde' where id=$1 returning 1", [r[0].id])).toHaveLength(0);
+    await sup("delete from mmt_records where id=$1", [r[0].id]);
+    await sup("delete from mmt_submissions where user_id=$1", [ID.diretor3]);
+  });
+});

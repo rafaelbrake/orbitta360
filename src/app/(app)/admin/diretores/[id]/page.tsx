@@ -65,7 +65,10 @@ export default async function DiretorDetalhe({ params, searchParams }: { params:
         ))}
       </div>
 
-      <h2 className="mb-2 mt-8">Destaques por oferta (Manter / Mudar / Treinar)</h2>
+      <div className="mb-2 mt-8 flex flex-wrap items-center gap-3">
+        <h2>Destaques por oferta (Manter / Mudar / Treinar)</h2>
+        <Link href={`/diretor/registro/novo?para=${id}`} className="btn btn-primary ml-auto"><Icon name="add" size={18} />Novo destaque em nome de {name}</Link>
+      </div>
       {records.length === 0 ? <p className="card text-sm text-(--ink-3)">Nenhum destaque registrado.</p> : (
         <div className="table-wrap">
           <table className="min-w-[44rem]">
