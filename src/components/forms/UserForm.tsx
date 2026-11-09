@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FormFooter } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
+import { REGIONAL_SUGGESTIONS } from "@/lib/regional";
 import type { Bu, Profile, Role, Segment } from "@/lib/types";
 
 function Checks({ name, items, checked }: { name: string; items: { id: string; label: string }[]; checked: string[] }) {
@@ -82,7 +83,9 @@ export function UserForm({ mode, action, user, bus, segs, buIds = [], segIds = [
           <div className="mt-5 space-y-5">
             <div className="max-w-sm">
               <label className="label" htmlFor="u-reg">Regional</label>
-              <input id="u-reg" name="regional" defaultValue={user?.regional ?? ""} className="input" />
+              <input id="u-reg" name="regional" list="u-reg-list" defaultValue={user?.regional ?? ""} className="input" placeholder="Ex.: Sul, SP, Demais estados" />
+              <datalist id="u-reg-list">{REGIONAL_SUGGESTIONS.map((r) => <option key={r} value={r} />)}</datalist>
+              <p className="mt-1 text-xs text-(--ink-3)">Aparece nos registros e na visão regional do diretor.</p>
             </div>
             <div>
               <span className="label">Segmentos em que registra</span>

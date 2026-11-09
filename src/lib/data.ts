@@ -171,3 +171,20 @@ export function requireStageReady(ctx: { profile: { role: string }; bu: { code: 
   if (ctx.profile.role !== "head" || ctx.stage.groupingConfirmedAt) return;
   redirect(currentStage(ctx.stage) === "ofertas" ? `/bu/${ctx.bu.code}/ofertas` : `/bu/${ctx.bu.code}/agrupamento`);
 }
+
+/** Líderes de cada segmento (segmento → ids de usuários). Vazio se a migration 0010 ainda não foi aplicada. */
+export async function loadSegmentLeaders(supabase: SupabaseClient): Promise<Map<string, string[]>> {
+  const { data } = await supabase.from("segment_leaders").select("segment_id,user_id");
+  const out = new Map<string, string[]>();
+  for (const r of data ?? []) out.set(r.segment_id as string, [...(out.get(r.segment_id as string) ?? []), r.user_id as string]);
+  return out;
+}
+
+/** Usuários ativos que podem liderar um segmento (qualquer perfil), por nome. */
+export async function loadLeaderCandidates(supabase: SupabaseClient) {
+  const { data } = await supabase.from("profiles").select("id,full_name,email,role,regional").eq("active", true);
+  return ((data ?? []) as { id: string; full_name: string | null; email: string; role: string; regional: string | null }[])
+    .map((p) => ({ id: p.id, name: p.full_name || p.email, role: p.role, regional: p.regional }))
+    // diretores primeiro (quem costuma liderar um segmento), depois os demais por nome
+    .sort((a, b) => Number(b.role === "diretor") - Number(a.role === "diretor") || a.name.localeCompare(b.name, "pt-BR"));
+}

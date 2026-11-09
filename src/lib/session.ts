@@ -23,5 +23,5 @@ export async function requireProfile(...roles: Role[]) {
 }
 
 export function homeFor(role: Role) {
-  return role === "admin" ? "/admin" : role === "head" ? "/bu" : DIRECTORS_ENABLED ? "/diretor" : "/em-breve";
+  return role === "admin" ? "/admin" : role === "head" ? "/bu" : DIRECTORS_ENABLED ? "/diretor/regiao" : "/em-breve";
 }

@@ -48,6 +48,8 @@ export interface Pitch {
   ticket_medio: number | null;
   updated_at?: string;
 }
+/** Recado de um diretor sobre um segmento: o que funciona e o que não funciona na região dele. */
+export interface RegionalView { id?: string; author_id?: string; segment_id: string; regional: string | null; works: string | null; not_works: string | null; updated_at?: string }
 export interface Submission { bu_id: string; status: SubmissionStatus; submitted_at: string | null; reopened_at: string | null; updated_at: string }
 
 export type MmtType = "manter" | "mudar" | "treinar";

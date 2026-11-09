@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { flash } from "@/lib/flash";
 import { AUDIENCES, MMT_TYPES, PRIORITIES } from "@/lib/mmt";
 import { requireProfile } from "@/lib/session";
+import { cleanViewText } from "@/lib/regional";
 import type { MmtPriority, MmtType } from "@/lib/types";
 import type { SaveResult } from "@/app/actions/bu";
 
@@ -71,12 +72,27 @@ export async function deleteMmtRecord(fd: FormData) {
   flash("/diretor", "ok", "Registro excluído.");
 }
 
-export async function submitMmt() {
+export async function submitMmt(fd?: FormData) {
   const { supabase } = await requireProfile("diretor");
+  const raw = fd ? String(fd.get("back") ?? "") : "";
+  const back = raw === "/diretor/regiao" ? raw : "/diretor"; // só volta para as telas do diretor
   const { error } = await supabase.rpc("submit_mmt");
-  if (error) flash("/diretor", "erro", error.message);
-  revalidatePath("/diretor");
-  flash("/diretor", "ok", "Envio concluído. Seus registros estão em modo somente leitura.");
+  if (error) flash(back, "erro", error.message);
+  revalidatePath("/diretor", "layout");
+  flash(back, "ok", "Envio concluído. Sua visão e seus registros estão em modo somente leitura.");
+}
+
+/** Autosave da visão regional de um segmento (um recado por diretor e segmento). A regional vem do perfil (trigger). */
+export async function saveRegionalView(segmentId: string, v: { works: string; not_works: string }): Promise<SaveResult> {
+  const { supabase } = await requireProfile("diretor", "admin");
+  if (!isUuid(segmentId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase
+    .from("regional_views")
+    .upsert({ segment_id: segmentId, works: cleanViewText(v.works), not_works: cleanViewText(v.not_works) }, { onConflict: "author_id,segment_id" })
+    .select("id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return { ok: true, savedAt: new Date().toISOString() };
 }
 
 /** Ofertas ativas de uma BU (só nome/código), para o campo opcional "oferta". */

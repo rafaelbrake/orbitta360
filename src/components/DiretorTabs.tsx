@@ -1,11 +1,12 @@
 import { Tabs } from "@/components/ui";
 
-export function DiretorTabs({ current }: { current: "registros" | "scores" }) {
+export function DiretorTabs({ current }: { current: "regiao" | "registros" | "scores" }) {
   return (
     <Tabs
       current={current}
       items={[
-        { key: "registros", label: "Meus registros", href: "/diretor" },
+        { key: "regiao", label: "Minha região", href: "/diretor/regiao" },
+        { key: "registros", label: "Destaques por oferta", href: "/diretor" },
         { key: "scores", label: "Score por segmento", href: "/diretor/scores" },
       ]}
     />

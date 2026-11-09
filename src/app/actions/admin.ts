@@ -139,10 +139,33 @@ export async function saveSegment(fd: FormData) {
   const { supabase } = await requireProfile("admin");
   const id = s(fd, "id");
   const form = id ? `/admin/segmentos/${id}` : "/admin/segmentos/novo"; // erros voltam ao formulário
-  const row = { name: s(fd, "name", 100), wave: s(fd, "wave", 20) || "2027/I", leader: s(fd, "leader", 80) || null, active: fd.get("active") === "on", sort: Number(s(fd, "sort")) || 0 };
+  const leaderIds = fd.getAll("leaders").map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x));
+  const setLeaders = fd.get("leaders_present") === "1"; // o formulário traz a seleção de líderes
+  let leaderText: string | null | undefined;
+  if (setLeaders) {
+    const { data: ppl } = leaderIds.length ? await supabase.from("profiles").select("full_name,email").in("id", leaderIds) : { data: [] };
+    leaderText = (ppl ?? []).map((p) => p.full_name || p.email).join(" e ") || null; // texto usado nas telas que só mostram o nome
+  }
+  const row = { name: s(fd, "name", 100), wave: s(fd, "wave", 20) || "2027/I", ...(leaderText !== undefined ? { leader: leaderText } : {}), active: fd.get("active") === "on", sort: Number(s(fd, "sort")) || 0 };
   if (!row.name) flash(form, "erro", "Informe o nome do segmento.");
-  const { error } = id ? await supabase.from("segments").update(row).eq("id", id) : await supabase.from("segments").insert(row);
-  if (error) flash(form, "erro", error.code === "23505" ? "Já existe segmento com esse nome." : error.message);
+  const saved = id ? await supabase.from("segments").update(row).eq("id", id).select("id").single() : await supabase.from("segments").insert(row).select("id").single();
+  if (saved.error) flash(form, "erro", saved.error.code === "23505" ? "Já existe segmento com esse nome." : saved.error.message);
+  if (setLeaders && saved.data) {
+    const segId = saved.data.id as string;
+    const del = await supabase.from("segment_leaders").delete().eq("segment_id", segId);
+    if (del.error) flash(form, "erro", `Segmento salvo, mas não consegui atualizar os líderes: ${del.error.message}`);
+    if (leaderIds.length) {
+      const ins = await supabase.from("segment_leaders").insert(leaderIds.map((user_id) => ({ segment_id: segId, user_id })));
+      if (ins.error) flash(form, "erro", `Segmento salvo, mas não consegui atualizar os líderes: ${ins.error.message}`);
+    }
+  }
+  // Limite de ofertas em Foco da consolidação (só quando o valor mudou)
+  const limit = Number(s(fd, "foco_limit")), prev = Number(s(fd, "foco_limit_prev"));
+  if (id && fd.get("foco_limit") !== null && limit !== prev) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) flash(form, "erro", "Segmento salvo, mas o máximo de Foco deve ser um número de 1 a 50.");
+    const r = await supabase.rpc("set_foco_limit", { p_segment: id, p_limit: limit });
+    if (r.error) flash(form, "erro", `Segmento salvo, mas não consegui mudar o limite de Foco: ${r.error.message}`);
+  }
   revalidatePath("/", "layout");
   flash(id ? form : "/admin/segmentos", "ok", id ? "Segmento atualizado." : "Segmento cadastrado.");
 }

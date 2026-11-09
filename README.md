@@ -55,6 +55,10 @@ Abra **SQL Editor** no Supabase e execute, **nesta ordem**, o conteúdo de:
 
 9. [`supabase/migrations/0009_delivery_waves.sql`](supabase/migrations/0009_delivery_waves.sql) — **duas ondas de entrega dos heads**: Onda 1 (Saúde e Indústria) até **12/11/2026** e Onda 2 (Varejo e Governo) até **19/11/2026**. Só ajusta dados: define a onda de cada segmento, **ativa os quatro segmentos** (Indústria e Governo entram na matriz dos heads) e grava os prazos. O prazo geral dos heads passa a ser o da última onda (19/11). Pode ser aplicada mais de uma vez.
 
+10. [`supabase/migrations/0010_segment_leaders_regional_views.sql`](supabase/migrations/0010_segment_leaders_regional_views.sql) — **líderes de segmento** (atribuição de usuário a segmento, independente do perfil) e **visão regional** dos Diretores Comerciais (um recado por diretor e segmento). O líder lê a visão e os destaques de todos sobre o segmento dele; o envio do diretor passa a aceitar só a visão regional. Não altera dados existentes.
+
+11. [`supabase/migrations/0011_segment_consolidation.sql`](supabase/migrations/0011_segment_consolidation.sql) — **consolidação por segmento**: o líder lê **ao vivo** as notas, pitches e ofertas das BUs sobre o segmento dele (somente leitura); prioridades por oferta em três níveis (**Foco, Apoio, Fora do radar**) com limite de ofertas em Foco por segmento (padrão 5, configurável pela Diretoria Corporativa em *Segmentos*); estratégia do segmento (tese e mensagem aos vendedores); **versão final** que o líder ou a Diretoria travam e só a Diretoria reabre. Não altera dados existentes.
+
 Quem já rodou as anteriores aplica só as novas.
 
 #### Ondas de entrega dos heads
@@ -71,6 +75,14 @@ npm run load:produtos -- --file "/caminho/Produtos.xlsx" --confirm   # grava
 ```
 
 O produto vira o nome da oferta, a BU é reconhecida pelo nome e o ID (OF-NN) é gerado pelo banco, na ordem da planilha. Tipo, modelo de receita e ticket entram em branco: os heads completam **na própria tabela da etapa 1** (listas em cada linha, salvamento automático, edição em lote por seleção e filtro de pendentes). Em cada linha (ou em lote, por seleção) o head pode **desconsiderar** uma oferta que não vale para a BU: ela não é apagada, só sai das próximas etapas (agrupamento, classificação e envio) e pode ser **reconsiderada** depois (filtro *Situação → Desconsideradas*). Agrupamentos e ofertas que já estão dentro de um agrupamento não podem ser desconsiderados antes de desfazer o agrupamento; com a etapa 1 já confirmada, só volta oferta que já tenha tipo e modelo. Seguro para rodar de novo: nomes que já existem na BU são ignorados. Se alguma BU da planilha não existir, nada é gravado.
+
+#### Diretores regionais e líderes de segmento
+
+Os Diretores Comerciais lideram **regiões** (Sul, SP, demais estados; Governo atua no país todo) e, cada um, **um segmento** na consolidação final. O trabalho tem duas partes:
+1. **Visão da região** (*Minha região*, no menu do diretor): para cada segmento, um recado curto sobre *o que funciona* e *o que não funciona* na região (salva sozinho). Os *Destaques por oferta* (Manter / Mudar / Treinar) continuam disponíveis como complemento. O diretor envia tudo de uma vez; basta ter a visão de um segmento.
+2. **Consolidação do segmento** (*Meu segmento*, no menu do líder; a Diretoria acessa por *Consolidação por segmento*): o líder vê **ao vivo** o ranking do segmento (todas as BUs), a visão regional de todos os diretores e os destaques por oferta; escreve a estratégia (tese e mensagem aos vendedores); define o nível de cada oferta (**Foco**, **Apoio**, **Fora do radar**; Foco tem limite, padrão 5, que a Diretoria muda em *Segmentos*). *Aplicar sugestão* preenche os níveis a partir das faixas dos heads sem mexer no que o líder já decidiu. Ao terminar, o líder (ou a Diretoria) **trava a versão final**; só a Diretoria reabre. O book de vendas em página de impressão (PDF) e a edição dos pitches pelo líder são a etapa seguinte.
+
+O líder é cadastrado em *Segmentos → editar → Líder(es) do segmento* e pode ser qualquer usuário (o líder de Governo continua head da PRT). Para o diretor aparecer com a regional certa, preencha *Regional* no cadastro dele (Sul, SP, Demais estados, Nacional).
 
 #### Área dos Diretores Comerciais (oculta por enquanto)
 
@@ -133,6 +145,17 @@ Em **Cadastros → Usuários → Convidar usuário** (somente admin): informe e-
 | **Diretoria Corporativa** | — | tudo; configura e administra |
 
 A pessoa recebe um e-mail, define a senha e já entra. Para trocar BUs, perfil ou desativar alguém, use a lista na mesma tela.
+
+### Cadastro dos Heads em lote
+
+Para cadastrar vários heads de uma vez, preencha uma planilha (Excel `.xlsx` ou CSV; modelo em [`modelos/heads-modelo.csv`](modelos/heads-modelo.csv)) com o cabeçalho na linha 1 e um head por linha: **Nome · E-mail · BU**. A BU pode ser a sigla ou o nome; quem cuida de mais de uma separa por `+`, vírgula ou "e" (`ITD + ITS`), ou usa uma linha por BU com o mesmo e-mail.
+
+```bash
+npm run load:heads -- --file "/caminho/heads.xlsx"             # SIMULA: mostra o que seria feito, sem gravar
+npm run load:heads -- --file "/caminho/heads.xlsx" --confirm   # cadastra e envia os convites por e-mail
+```
+
+Opções: `--sem-email` (cadastra e vincula as BUs sem enviar e-mail), `--reenviar` (para quem já existe e nunca entrou, envia o e-mail de senha de novo) e `--site URL` (endereço nos links; padrão `https://www.orbitta360.com`). Se qualquer linha tiver problema (e-mail inválido, BU desconhecida, pessoa que já é admin ou diretor), **nada é gravado** e o relatório diz o que corrigir. Pode rodar de novo com segurança: quem já existe só ganha as BUs que faltam. Antes de enviar convites, configure o SMTP próprio no Supabase e os modelos de e-mail (seção 6).
 
 ## 4. Fluxo de uso
 

@@ -7,6 +7,7 @@ import { StatTile } from "@/components/StatTile";
 import { PageHeader, ProgressBar, StatusBadge } from "@/components/ui";
 import { daysUntil, fmtDate, fmtDateTime, loadConfig, progressOf, statusOf, STATUS_LABEL, waveStatuses } from "@/lib/data";
 import { waveScope } from "@/lib/waves";
+import { isViewFilled } from "@/lib/regional";
 import { WaveCards } from "@/components/WaveCards";
 import { requireProfile } from "@/lib/session";
 import { reopenBu, reopenMmt } from "@/app/actions/admin";
@@ -21,7 +22,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { supabase } = await requireProfile("admin");
   const config = await loadConfig(supabase);
-  const [offers, evals, sb, ub, pr, mmt, mmtSb] = await Promise.all([
+  const [offers, evals, sb, ub, pr, mmt, mmtSb, rv] = await Promise.all([
     fetchAll<Offer>((a, b) => supabase.from("offers").select("*").order("id").range(a, b)),
     fetchAll<EvaluationScored>((a, b) => supabase.from("evaluations_scored").select("*").order("id").range(a, b)),
     supabase.from("bu_submissions").select("*"),
@@ -29,6 +30,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
     supabase.from("profiles").select("id,full_name,email,role,active,regional"),
     DIRECTORS_ENABLED ? fetchAll<MmtRecord>((a, b) => supabase.from("mmt_records").select("*").order("id").range(a, b)) : Promise.resolve([] as MmtRecord[]),
     DIRECTORS_ENABLED ? supabase.from("mmt_submissions").select("*") : Promise.resolve({ data: [] as MmtSubmission[] }),
+    DIRECTORS_ENABLED ? supabase.from("regional_views").select("author_id,works,not_works") : Promise.resolve({ data: [] as { author_id: string; works: string | null; not_works: string | null }[] }),
   ]);
   const subs = (sb.data ?? []) as Submission[];
   const mmtSubs = (mmtSb.data ?? []) as MmtSubmission[];
@@ -59,11 +61,12 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
     const sub = mmtSubs.find((x) => x.user_id === u.id) ?? null;
     const complete = mine.filter((r) => isMmtComplete(r)).length;
     const last = mine.map((r) => r.updated_at).sort().at(-1) ?? null;
-    return { u, total: mine.length, complete, sub, st: mmtStatusOf(sub, mine.length), last };
+    const views = ((rv.data ?? []) as { author_id: string; works: string | null; not_works: string | null }[]).filter((v) => v.author_id === u.id && isViewFilled(v)).length;
+    return { u, total: mine.length, complete, views, sub, st: mmtStatusOf(sub, mine.length + views), last };
   }).sort((a, b) => (a.u.full_name || a.u.email).localeCompare(b.u.full_name || b.u.email, "pt-BR"));
   const pendingDirectors = directors.filter((d) => d.st !== "submitted");
   const pendingDirectorsText =
-    `Pendentes — Manter / Mudar / Treinar 2027 (prazo: ${fmtDate(config.settings.deadline_directors)}):\n` +
+    `Pendentes — visão regional e destaques 2027 (prazo: ${fmtDate(config.settings.deadline_directors)}):\n` +
     pendingDirectors.map((d) => `• ${d.u.full_name || d.u.email}${d.u.regional ? ` (${d.u.regional})` : ""} — ${STATUS_LABEL[d.st]} (${d.total} registros, ${d.complete} completos)`).join("\n");
 
   // Indicadores do topo
@@ -148,20 +151,21 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
       {DIRECTORS_ENABLED && (
         <>
       <div className="mb-3 mt-10 flex flex-wrap items-center gap-3">
-        <h2>Diretores Comerciais — Manter / Mudar / Treinar</h2>
+        <h2>Diretores Comerciais — visão regional e destaques</h2>
         <span className="text-sm text-(--ink-3)">Prazo: {fmtDate(config.settings.deadline_directors)}</span>
         <div className="ml-auto"><CopyButton text={pendingDirectorsText} label={`Copiar pendentes (${pendingDirectors.length})`} /></div>
       </div>
       <div className="table-wrap">
         <table className="min-w-[40rem]">
           <thead><tr>
-            <th className="th">Diretor</th><th className="th">Regional</th><th className="th">Registros</th><th className="th w-56">Preenchimento</th><th className="th">Status</th><th className="th">Última atualização</th><th className="th"></th>
+            <th className="th">Diretor</th><th className="th">Regional</th><th className="th">Visão regional</th><th className="th">Destaques</th><th className="th w-56">Preenchimento</th><th className="th">Status</th><th className="th">Última atualização</th><th className="th"></th>
           </tr></thead>
           <tbody>
             {directors.map((d) => (
               <tr key={d.u.id}>
                 <td className="td font-semibold">{d.u.full_name || d.u.email}</td>
                 <td className="td text-sm">{d.u.regional || "—"}</td>
+                <td className="td tabular-nums text-sm">{d.views} de {config.activeSegments.length} segmentos</td>
                 <td className="td tabular-nums">{d.total}</td>
                 <td className="td"><ProgressBar done={d.complete} total={d.total} unit="completos" /></td>
                 <td className="td"><StatusBadge status={d.st} label={STATUS_LABEL[d.st]} /></td>
