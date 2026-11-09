@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { setPriority, setPriorityNote } from "@/app/actions/segment";
 import { Icon } from "@/components/Icon";
@@ -8,7 +9,7 @@ import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, suggestedLevel, type Level } from "@/
 
 export interface PriorityRow {
   offerId: string; code: string | null; name: string; buCode: string; score: number; classCode: string; classLabel: string;
-  hasPitch: boolean; signals: { regional: string; type: string }[];
+  hasPitch: boolean; leaderPitch: boolean; signals: { regional: string; type: string }[];
 }
 type Filter = "todas" | Level | "sem";
 const SIGNAL_STYLE: Record<string, string> = { manter: "bg-(--brand-100) text-(--brand-800)", mudar: "bg-(--accent-100) text-(--accent-800)", treinar: "bg-slate-200 text-slate-700" };
@@ -81,7 +82,11 @@ export function PriorityTable({ segmentId, rows, initialLevels, initialNotes, fo
                   <td className="td min-w-48"><div className="font-semibold text-(--forest)">{r.name}</div>{r.code && <div className="text-xs text-(--ink-3)">{r.code}</div>}</td>
                   <td className="td whitespace-nowrap text-sm font-medium">{r.buCode}</td>
                   <td className="td whitespace-nowrap"><span className="mr-1.5 font-semibold tabular-nums">{r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /></td>
-                  <td className="td whitespace-nowrap text-sm">{r.hasPitch ? <span className="text-(--brand-800)">Com pitch</span> : <span className="text-(--ink-3)">Sem pitch</span>}</td>
+                  <td className="td whitespace-nowrap text-sm">
+                    <Link href={`/segmento/${segmentId}/pitch/${r.offerId}`} className="font-medium text-(--brand) underline-offset-2 hover:underline">
+                      {readOnly ? "Ver pitch" : r.leaderPitch ? "Pitch do segmento · editar" : r.hasPitch ? "Pitch do head · editar" : "Escrever pitch"}
+                    </Link>
+                  </td>
                   <td className="td">
                     <div className="flex max-w-56 flex-wrap gap-1">
                       {r.signals.length === 0 ? <span className="text-xs text-(--ink-3)">—</span> : r.signals.map((s, i) => (

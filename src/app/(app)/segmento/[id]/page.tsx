@@ -25,14 +25,16 @@ export default async function SegmentoPage({ params, searchParams }: { params: P
   const { supabase, config, segment, isAdmin, isLeader } = await requireSegmentAccess(id);
   const tab = sp.tab === "regional" ? "regional" : "prioridades";
 
-  const [rows, prR, stR, viewsR, mmtR, subR] = await Promise.all([
+  const [rows, prR, stR, viewsR, mmtR, subR, lpR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("segment_priorities").select("offer_id,level,note").eq("segment_id", id),
     supabase.from("segment_strategies").select("*").eq("segment_id", id).maybeSingle(),
     supabase.from("regional_views").select("regional,works,not_works,updated_at").eq("segment_id", id),
     supabase.from("mmt_records").select("type,bu_id,offer_id,regional,headline,evidence,action").eq("segment_id", id),
     supabase.from("bu_submissions").select("bu_id,status"),
+    supabase.from("segment_pitches").select("offer_id").eq("segment_id", id),
   ]);
+  const leaderPitchOffers = new Set((lpR.data ?? []).map((r) => r.offer_id as string));
   const strategy = stR.data as { thesis: string | null; message: string | null; foco_limit: number; status: string; finalized_at: string | null } | null;
   const final = strategy?.status === "final";
   const focoLimit = strategy?.foco_limit ?? DEFAULT_FOCO_LIMIT;
@@ -49,7 +51,7 @@ export default async function SegmentoPage({ params, searchParams }: { params: P
   const bandLabel = Object.fromEntries(config.bands.map((b) => [b.code, b.label]));
   const tableRows: PriorityRow[] = rows.map((r) => ({
     offerId: r.offerId, code: r.offerCode, name: r.offerName, buCode: r.bu.code, score: r.score, classCode: r.classCode, classLabel: bandLabel[r.classCode] ?? r.classCode,
-    hasPitch: r.hasPitch, signals: signalsByOffer.get(r.offerId) ?? [],
+    hasPitch: r.hasPitch, leaderPitch: leaderPitchOffers.has(r.offerId), signals: signalsByOffer.get(r.offerId) ?? [],
   }));
 
   const views = ((viewsR.data ?? []) as { regional: string | null; works: string | null; not_works: string | null }[]).filter((v) => isViewFilled(v));
@@ -94,6 +96,13 @@ export default async function SegmentoPage({ params, searchParams }: { params: P
             </form>
           ) : "Para mexer de novo, a Diretoria Corporativa precisa reabrir."}
         </Notice>
+      )}
+
+      {counts.foco + counts.apoio > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Link href={`/book/${id}`} target="_blank" className="btn btn-primary"><Icon name="download" size={18} />Abrir o book para imprimir (PDF)</Link>
+          <span className="text-sm text-(--ink-3)">Monta o book com a estratégia, as ofertas em Foco e em Apoio e os pitches. Abre em outra aba.</span>
+        </div>
       )}
 
       <Tabs current={tab} items={[{ key: "prioridades", label: "Prioridades e estratégia", href: base }, { key: "regional", label: `Visão regional (${regionals.length})`, href: `${base}?tab=regional` }]} />

@@ -6,6 +6,7 @@ import { savePitch } from "@/app/actions/bu";
 import { Icon } from "@/components/Icon";
 import { SaveIndicator, useAutosave } from "@/components/useAutosave";
 import { Notice } from "@/components/ui";
+import type { SaveResult } from "@/app/actions/bu";
 import { REVENUE_MODELS, ticketHint, ticketLabel } from "@/lib/offers";
 import { emptyCase, MAX_CASES, missingPitchFields, REQUIRED_PITCH, type PitchCase } from "@/lib/pitch";
 
@@ -21,12 +22,18 @@ export interface PitchValues {
 
 const REQUIRED_KEYS = new Set<string>(REQUIRED_PITCH.map(([k]) => k));
 
-export function PitchForm({ offerId, segmentId, offerName, segmentName, classLabel, initial, prefilled, readOnly, backHref }: {
+export function PitchForm({ offerId, segmentId, offerName, segmentName, classLabel, initial, prefilled, readOnly, backHref, mode = "head", save, backLabel = "Voltar à matriz", banner }: {
   offerId: string; segmentId: string; offerName: string; segmentName: string; classLabel: string | null;
   initial: PitchValues; prefilled: boolean; readOnly: boolean; backHref: string;
+  /** "lider": versão do segmento usada no book (sem os campos obrigatórios do head). */
+  mode?: "head" | "lider";
+  /** como salvar; o padrão grava o pitch do head */
+  save?: (values: PitchValues) => Promise<SaveResult>;
+  backLabel?: string; banner?: React.ReactNode;
 }) {
+  const lider = mode === "lider";
   const [v, setV] = useState<PitchValues>(initial);
-  const { status, saveNow } = useAutosave(v, (values) => savePitch({ offerId, segmentId, values }), { disabled: readOnly });
+  const { status, saveNow } = useAutosave(v, (values) => (save ? save(values) : savePitch({ offerId, segmentId, values })), { disabled: readOnly });
   const set = <K extends keyof PitchValues>(k: K, val: PitchValues[K]) => setV((prev) => ({ ...prev, [k]: val }));
   const missing = missingPitchFields(v);
   const total = REQUIRED_PITCH.length;
@@ -37,14 +44,14 @@ export function PitchForm({ offerId, segmentId, offerName, segmentName, classLab
   // Função de render (não componente): evita remontar o campo a cada tecla e perder o foco.
   const area = (k: Exclude<keyof PitchValues, "cases">, label: string, rows = 3, hint?: string) => (
     <div>
-      <label className="label" htmlFor={`f-${k}`}>{label}{REQUIRED_KEYS.has(k) && <span className="text-(--danger)"> *</span>}</label>
+      <label className="label" htmlFor={`f-${k}`}>{label}{!lider && REQUIRED_KEYS.has(k) && <span className="text-(--danger)"> *</span>}</label>
       <textarea id={`f-${k}`} rows={rows} maxLength={4000} disabled={readOnly} className="input" value={v[k] as string} onChange={(e) => set(k, e.target.value as never)} />
       {hint && <p className="mt-1 text-xs text-(--ink-3)">{hint}</p>}
     </div>
   );
   const line = (k: Exclude<keyof PitchValues, "cases">, label: string, placeholder?: string, hint?: string) => (
     <div>
-      <label className="label" htmlFor={`f-${k}`}>{label}{REQUIRED_KEYS.has(k) && <span className="text-(--danger)"> *</span>}</label>
+      <label className="label" htmlFor={`f-${k}`}>{label}{!lider && REQUIRED_KEYS.has(k) && <span className="text-(--danger)"> *</span>}</label>
       <input id={`f-${k}`} maxLength={300} disabled={readOnly} className="input" placeholder={placeholder} value={v[k] as string} onChange={(e) => set(k, e.target.value as never)} />
       {hint && <p className="mt-1 text-xs text-(--ink-3)">{hint}</p>}
     </div>
@@ -54,19 +61,22 @@ export function PitchForm({ offerId, segmentId, offerName, segmentName, classLab
     <div className="space-y-5">
       <div className="sticky top-14 z-10 -mx-4 mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-(--line) bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:px-10">
         <div className="mr-auto min-w-0">
-          <div className="eyebrow">Pitch · {segmentName}{classLabel ? ` · ${classLabel}` : ""}</div>
+          <div className="eyebrow">{lider ? "Pitch do book" : "Pitch"} · {segmentName}{classLabel ? ` · ${classLabel}` : ""}</div>
           <h1 className="truncate !text-xl">{offerName}</h1>
         </div>
-        <span className={`badge ${missing.length === 0 ? "bg-(--brand-100) text-(--brand-800)" : "bg-amber-100 text-amber-900"}`} title={missing.length ? `Faltam: ${missing.join(", ")}` : undefined}>
+        {!lider && <span className={`badge ${missing.length === 0 ? "bg-(--brand-100) text-(--brand-800)" : "bg-amber-100 text-amber-900"}`} title={missing.length ? `Faltam: ${missing.join(", ")}` : undefined}>
           <Icon name={missing.length === 0 ? "task_alt" : "edit"} size={14} />
           {total - missing.length} de {total} obrigatórios
-        </span>
+        </span>}
         <SaveIndicator status={status} onRetry={() => void saveNow()} />
       </div>
-      {readOnly && <Notice tone="warn">Somente leitura: período fechado ou envio concluído.</Notice>}
-      <p className="text-sm text-(--ink-2)">
-        Campos com <span className="text-(--danger)">*</span> são obrigatórios para enviar: esta oferta está em prioridade alta ou potencial neste segmento. Cada oferta tem o seu pitch em cada segmento.
-      </p>
+      {readOnly && <Notice tone="warn">{lider ? "Somente leitura: a versão final do segmento está travada." : "Somente leitura: período fechado ou envio concluído."}</Notice>}
+      {banner}
+      {!lider && (
+        <p className="text-sm text-(--ink-2)">
+          Campos com <span className="text-(--danger)">*</span> são obrigatórios para enviar: esta oferta está em prioridade alta ou potencial neste segmento. Cada oferta tem o seu pitch em cada segmento.
+        </p>
+      )}
 
       <section className="card space-y-4 !p-5">
         {area("descricao", "Descrição da oferta", 3, prefilled ? "Veio da descrição cadastrada da oferta. Ajuste se quiser adaptar a este segmento." : undefined)}
@@ -167,7 +177,7 @@ export function PitchForm({ offerId, segmentId, offerName, segmentName, classLab
         </div>
       </section>
 
-      <Link href={backHref} className="btn" onClick={() => void saveNow()}><Icon name="arrow_back" size={18} />Voltar à matriz</Link>
+      <Link href={backHref} className="btn" onClick={() => void saveNow()}><Icon name="arrow_back" size={18} />{backLabel}</Link>
     </div>
   );
 }

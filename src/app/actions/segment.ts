@@ -6,6 +6,7 @@ import { loadConfig } from "@/lib/data";
 import { loadRanking } from "@/lib/consolidated";
 import { requireProfile } from "@/lib/session";
 import { DEFAULT_FOCO_LIMIT, cleanNote, cleanText, isLevel, planSuggestion, type Level } from "@/lib/segment";
+import { sanitizePitch, type PitchInput } from "@/lib/pitch";
 import type { SaveResult } from "@/app/actions/bu";
 
 const BLOCKED = "Edição bloqueada: a versão final está travada ou você não lidera este segmento.";
@@ -97,4 +98,28 @@ export async function reopenSegment(fd: FormData) {
   if (error) flash(back, "erro", error.message);
   revalidatePath(back);
   flash(back, "ok", "Versão reaberta para edição.");
+}
+
+/** Salva a versão do líder do pitch de uma oferta no segmento (o texto do head não é tocado). */
+export async function saveLeaderPitch(input: { segmentId: string; offerId: string; values: PitchInput }): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(input.segmentId) || !isUuid(input.offerId)) return { ok: false, error: "Dados inválidos." };
+  const row = { segment_id: input.segmentId, offer_id: input.offerId, ...sanitizePitch(input.values ?? {}) };
+  const { data, error } = await supabase.from("segment_pitches").upsert(row, { onConflict: "segment_id,offer_id" }).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return { ok: true, savedAt: new Date().toISOString() };
+}
+
+/** Descarta a versão do líder: o book volta a usar o texto do head. */
+export async function resetLeaderPitch(fd: FormData) {
+  const segmentId = String(fd.get("segment_id")), offerId = String(fd.get("offer_id"));
+  const back = `/segmento/${segmentId}/pitch/${offerId}`;
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) flash("/segmento", "erro", "Dados inválidos.");
+  const { data, error } = await supabase.from("segment_pitches").delete().eq("segment_id", segmentId).eq("offer_id", offerId).select("offer_id");
+  if (error) flash(back, "erro", friendly(error));
+  if (!data?.length) flash(back, "erro", BLOCKED);
+  revalidatePath(`/segmento/${segmentId}`, "layout");
+  flash(back, "ok", "Voltou ao texto do head.");
 }

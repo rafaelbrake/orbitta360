@@ -160,3 +160,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); }
 /* Coluna de ação das listagens: fica visível mesmo com rolagem horizontal */
 .table-wrap .col-actions { position: sticky; right: 0; background: var(--surface); box-shadow: -10px 0 10px -10px rgba(23, 57, 47, 0.2); }
 .table-wrap thead .col-actions { background: var(--brand-50); z-index: 2; box-shadow: none; }
+
+/* Impressão (book de vendas): A4, fundo branco e cores de selo preservadas */
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

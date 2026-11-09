@@ -75,6 +75,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0008_offer_code_over_99.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0010_segment_leaders_regional_views.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0011_segment_consolidation.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0012_segment_pitches.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1104,5 +1105,55 @@ describe("consolidação do segmento: leitura ao vivo, prioridades, limite de Fo
     // a Diretoria também pode travar
     await as(ID.admin, "select finalize_segment($1)", [varejo()]);
     expect((await as<{ status: string }>(ID.admin, "select status from segment_strategies where segment_id=$1", [varejo()]))[0].status).toBe("final");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Pitch do líder (migration 0012)                                     */
+/* ------------------------------------------------------------------ */
+describe("pitch editado pelo líder: cópia por segmento, sem tocar no texto do head", () => {
+  // Sul (ID.diretor) lidera Saúde · SP (ID.diretor2) lidera Varejo · Norte (ID.diretor3) não lidera
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  let offer = "";
+
+  it("o líder grava a versão dele (upsert completo) e o texto original do head fica intacto", async () => {
+    await sup("delete from segment_leaders where segment_id in ($1,$2)", [saude(), varejo()]);
+    await sup("insert into segment_leaders values ($1,$2),($3,$4)", [saude(), ID.diretor, varejo(), ID.diretor2]);
+    offer = (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Oferta do pitch') returning id", [buId.LBL]))[0].id;
+    await sup("insert into pitches (offer_id,segment_id,descricao,dores) values ($1,$2,'texto do head','dor do head')", [offer, saude()]);
+    // o upsert do Supabase reescreve também a chave: aqui precisa funcionar
+    const up = (descricao: string) => as(ID.diretor, `insert into segment_pitches (segment_id,offer_id,descricao,cases,modelo_receita,ticket_medio)
+      values ($1,$2,$3,'[{"cliente":"ACME"}]','Recorrente',12000)
+      on conflict (segment_id,offer_id) do update set segment_id=excluded.segment_id, offer_id=excluded.offer_id, descricao=excluded.descricao, cases=excluded.cases, modelo_receita=excluded.modelo_receita, ticket_medio=excluded.ticket_medio returning 1`, [saude(), offer, descricao]);
+    expect(await up("versão do líder")).toHaveLength(1);
+    expect(await up("versão do líder 2")).toHaveLength(1);
+    expect((await as<{ descricao: string }>(ID.diretor, "select descricao from segment_pitches where offer_id=$1", [offer]))[0].descricao).toBe("versão do líder 2");
+    expect((await sup<{ descricao: string; dores: string }>("select descricao, dores from pitches where offer_id=$1 and segment_id=$2", [offer, saude()]))[0]).toEqual({ descricao: "texto do head", dores: "dor do head" });
+  });
+
+  it("só o líder daquele segmento e o admin leem e escrevem; dados inválidos são barrados", async () => {
+    expect(await as(ID.diretor2, "select 1 from segment_pitches")).toHaveLength(0);   // líder de outro segmento
+    expect(await as(ID.diretor3, "select 1 from segment_pitches")).toHaveLength(0);
+    expect(await as(ID.admin, "select 1 from segment_pitches where offer_id=$1", [offer])).toHaveLength(1);
+    await fails(ID.diretor2, "insert into segment_pitches (segment_id,offer_id,descricao) values ($1,$2,'x')", [saude(), offer]);
+    await fails(ID.diretor3, "insert into segment_pitches (segment_id,offer_id,descricao) values ($1,$2,'x')", [varejo(), offer]);
+    expect(await as(ID.diretor2, "update segment_pitches set descricao='invasor' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    await fails(ID.diretor, "update segment_pitches set modelo_receita='Mensal' where offer_id=$1", [offer]);
+    await fails(ID.diretor, "update segment_pitches set funcionarios_min=10, funcionarios_max=5 where offer_id=$1", [offer]);
+    await fails(ID.diretor, "update segment_pitches set cases='{}'::jsonb where offer_id=$1", [offer]);
+    // o líder pode voltar ao texto do head apagando a cópia
+    expect(await as(ID.diretor, "delete from segment_pitches where offer_id=$1 returning 1", [offer])).toHaveLength(1);
+    expect(await as(ID.diretor3, "delete from segment_pitches returning 1")).toHaveLength(0);
+  });
+
+  it("depois da versão final ninguém edita o pitch; reaberta, volta a editar", async () => {
+    await as(ID.diretor, "insert into segment_pitches (segment_id,offer_id,descricao) values ($1,$2,'antes')", [saude(), offer]);
+    await as(ID.diretor, "select finalize_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update segment_pitches set descricao='tarde' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    await fails(ID.diretor, "insert into segment_pitches (segment_id,offer_id,descricao) values ($1,$2,'novo')", [saude(), (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Outra') returning id", [buId.LBL]))[0].id]);
+    expect(await as(ID.admin, "update segment_pitches set descricao='admin tarde' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    await as(ID.admin, "select reopen_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update segment_pitches set descricao='depois' where offer_id=$1 returning 1", [offer])).toHaveLength(1);
   });
 });
