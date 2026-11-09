@@ -1202,3 +1202,36 @@ describe("modo reunião: ajustes pedidos e anotações, sob a mesma trava da con
     expect(await as(ID.diretor, "update segment_priorities set review_note='de novo' where segment_id=$1 and offer_id=$2 returning 1", [saude(), offer])).toHaveLength(1);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* A Diretoria acompanha e ajuda os diretores regionais                */
+/* ------------------------------------------------------------------ */
+describe("Diretoria Corporativa escreve a visão regional em nome do diretor", () => {
+  const saude = () => segId["Saúde"];
+
+  it("o admin lê todas as visões e edita em nome do diretor, mesmo depois do envio; a regional continua a do diretor", async () => {
+    await sup("update profiles set role='diretor', regional='Norte' where id=$1", [ID.diretor3]);
+    await sup("delete from regional_views where author_id=$1", [ID.diretor3]);
+    await sup("insert into regional_views (author_id,segment_id,works) values ($1,$2,'escrito pelo diretor')", [ID.diretor3, saude()]);
+    await sup("insert into mmt_submissions (user_id,status,submitted_at) values ($1,'submitted',now()) on conflict (user_id) do update set status='submitted'", [ID.diretor3]);
+    expect(await as(ID.admin, "select 1 from regional_views where author_id=$1", [ID.diretor3])).toHaveLength(1);
+    // depois do envio o diretor não edita, mas a Diretoria edita para ajudar
+    expect(await as(ID.diretor3, "update regional_views set works='tarde' returning 1")).toHaveLength(0);
+    expect(await as(ID.admin, "update regional_views set works='ajustado pela Diretoria' where author_id=$1 returning 1", [ID.diretor3])).toHaveLength(1);
+    // e cria a visão de um segmento que o diretor ainda não escreveu, em nome dele
+    expect(await as(ID.admin, "insert into regional_views (author_id,segment_id,not_works) values ($1,$2,'preço trava') returning 1", [ID.diretor3, segId["Varejo (inclui Atacado)"]])).toHaveLength(1);
+    const r = await sup<{ regional: string; author_id: string }>("select regional, author_id from regional_views where author_id=$1 and segment_id=$2", [ID.diretor3, segId["Varejo (inclui Atacado)"]]);
+    expect(r[0]).toEqual({ regional: "Norte", author_id: ID.diretor3 });
+    expect((await as<{ works: string }>(ID.diretor3, "select works from regional_views where segment_id=$1", [saude()]))[0].works).toBe("ajustado pela Diretoria");
+  });
+
+  it("head e outro diretor não escrevem em nome de ninguém", async () => {
+    await fails(ID.headCYB, "insert into regional_views (author_id,segment_id,works) values ($1,$2,'x')", [ID.diretor3, segId["Indústria"]]);
+    await fails(ID.diretor, "insert into regional_views (author_id,segment_id,works) values ($1,$2,'x')", [ID.diretor3, segId["Indústria"]]);
+  });
+
+  it("a Diretoria reabre o envio e o diretor volta a editar", async () => {
+    await as(ID.admin, "select reopen_mmt($1)", [ID.diretor3]);
+    expect(await as(ID.diretor3, "update regional_views set works='voltei' where segment_id=$1 returning 1", [saude()])).toHaveLength(1);
+  });
+});

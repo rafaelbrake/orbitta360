@@ -8,6 +8,9 @@ import { PageHeader, ProgressBar, StatusBadge } from "@/components/ui";
 import { daysUntil, fmtDate, fmtDateTime, loadConfig, progressOf, statusOf, STATUS_LABEL, waveStatuses } from "@/lib/data";
 import { waveScope } from "@/lib/waves";
 import { isViewFilled } from "@/lib/regional";
+import { SegmentOverviewTable } from "@/components/SegmentOverviewTable";
+import { loadSegmentOverview } from "@/lib/segment-overview";
+import { Icon } from "@/components/Icon";
 import { WaveCards } from "@/components/WaveCards";
 import { requireProfile } from "@/lib/session";
 import { reopenBu, reopenMmt } from "@/app/actions/admin";
@@ -22,6 +25,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { supabase } = await requireProfile("admin");
   const config = await loadConfig(supabase);
+  const segOverview = DIRECTORS_ENABLED ? await loadSegmentOverview(supabase, config) : [];
   const [offers, evals, sb, ub, pr, mmt, mmtSb, rv] = await Promise.all([
     fetchAll<Offer>((a, b) => supabase.from("offers").select("*").order("id").range(a, b)),
     fetchAll<EvaluationScored>((a, b) => supabase.from("evaluations_scored").select("*").order("id").range(a, b)),
@@ -171,6 +175,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
                 <td className="td"><StatusBadge status={d.st} label={STATUS_LABEL[d.st]} /></td>
                 <td className="td text-sm text-(--ink-2)">{fmtDateTime(d.last)}</td>
                 <td className="td whitespace-nowrap text-right">
+                  <Link href={`/admin/diretores/${d.u.id}`} className="btn btn-sm mr-1.5"><Icon name="visibility" size={16} />Abrir</Link>
                   {d.st === "submitted" && (
                     <form action={reopenMmt} className="inline">
                       <input type="hidden" name="user_id" value={d.u.id} />
@@ -188,6 +193,12 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           </EmptyState>
         )}
       </div>
+
+      <div className="mb-3 mt-10 flex flex-wrap items-center gap-3">
+        <h2>Líderes de segmento — consolidação</h2>
+        <span className="text-sm text-(--ink-3)">Reunião de consolidação em 25 e 26/11</span>
+      </div>
+      <SegmentOverviewTable rows={segOverview} />
         </>
       )}
     </div>

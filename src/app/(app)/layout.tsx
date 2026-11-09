@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               { href: "/admin", label: "Progresso", icon: "dashboard", exact: true },
               { href: "/consolidado/ranking", label: "Consolidado", icon: "bar_chart", match: "/consolidado" },
               { href: "/bu", label: "Pontuação por BU", icon: "list_alt" },
-              ...(DIRECTORS_ENABLED ? [{ href: "/segmento", label: "Consolidação por segmento", icon: "target" as const, match: "/segmento" }] : []),
+              ...(DIRECTORS_ENABLED ? [{ href: "/admin/diretores", label: "Diretores regionais", icon: "group" as const, match: "/admin/diretores" }, { href: "/segmento", label: "Consolidação por segmento", icon: "target" as const, match: "/segmento" }] : []),
             ],
           },
           {

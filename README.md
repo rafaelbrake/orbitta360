@@ -88,6 +88,10 @@ Os Diretores Comerciais lideram **regiões** (Sul, SP, demais estados; Governo a
 
 **Modo reunião** (botão *Modo reunião (projetar)* no painel do segmento; endereço `/reuniao/<segmento>`): o segmento em tela cheia para a reunião de consolidação. Sequência: abertura, estratégia (editável na hora), **mesa de decisão** (todas as ofertas com o nível), **uma tela por oferta em Foco** com o pitch, o que disseram as regionais, o nível e o campo *Ajuste pedido na reunião* (com *Ajuste feito*), ofertas de apoio, visão das regiões e **fechamento** (ajustes pendentes, anotações da reunião, abrir o book e travar a versão final). Setas ← → (ou Espaço) navegam, **F** liga a tela cheia, e a página lembra a tela atual no endereço (`?s=`). Mudar o nível de uma oferta muda as telas na hora (quem entra em Foco ganha a sua), e o limite de Foco continua valendo. Quem opera é o líder do segmento ou a Diretoria Corporativa; os heads acompanham pela projeção.
 
+**A Diretoria Corporativa acompanha e ajuda** (como já faz com as BUs):
+- *Diretores regionais* (menu da Diretoria): a lista dos diretores com a visão regional (segmentos preenchidos), os destaques, o status e a última atualização. Ao **abrir** um diretor, a Diretoria vê a visão dele por segmento e os destaques, **pode editar em nome dele(a)** (inclusive depois do envio, para ajudar no preenchimento) e reabrir o envio. Tudo fica na auditoria.
+- *Consolidação por segmento* (menu da Diretoria) e o bloco *Líderes de segmento* do *Progresso*: para cada segmento, o andamento das avaliações dos heads, os níveis definidos (Foco x de limite, Apoio, Fora do radar), se a tese e a mensagem foram escritas, as visões e destaques das regionais, os ajustes pendentes da reunião e o status (rascunho ou versão final). Dali a Diretoria abre qualquer segmento (ou o modo reunião) e edita como o líder.
+
 O líder é cadastrado em *Segmentos → editar → Líder(es) do segmento* e pode ser qualquer usuário (o líder de Governo continua head da PRT). Para o diretor aparecer com a regional certa, preencha *Regional* no cadastro dele (Sul, SP, Demais estados, Nacional).
 
 #### Área dos Diretores Comerciais (oculta por enquanto)

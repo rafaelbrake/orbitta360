@@ -27,7 +27,7 @@ export default async function MmtRecordPage({ params }: { params: Promise<{ id: 
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <BackLink href="/diretor">Meus registros</BackLink>
+        <BackLink href={profile.role === "admin" ? `/admin/diretores/${rec.author_id}` : "/diretor"}>{profile.role === "admin" ? "Voltar ao diretor" : "Meus registros"}</BackLink>
         {isEditable && (
           <form action={deleteMmtRecord} className="-mt-3">
             <input type="hidden" name="id" value={rec.id} />

@@ -83,12 +83,14 @@ export async function submitMmt(fd?: FormData) {
 }
 
 /** Autosave da visão regional de um segmento (um recado por diretor e segmento). A regional vem do perfil (trigger). */
-export async function saveRegionalView(segmentId: string, v: { works: string; not_works: string }): Promise<SaveResult> {
-  const { supabase } = await requireProfile("diretor", "admin");
+export async function saveRegionalView(segmentId: string, v: { works: string; not_works: string }, authorId?: string): Promise<SaveResult> {
+  const { supabase, profile } = await requireProfile("diretor", "admin");
   if (!isUuid(segmentId)) return { ok: false, error: "Dados inválidos." };
+  // A Diretoria Corporativa pode escrever em nome de um diretor (para ajudar no preenchimento); o diretor, só em nome próprio.
+  if (authorId !== undefined && authorId !== profile.id && (profile.role !== "admin" || !isUuid(authorId))) return { ok: false, error: "Você só pode editar a sua própria visão." };
   const { data, error } = await supabase
     .from("regional_views")
-    .upsert({ segment_id: segmentId, works: cleanViewText(v.works), not_works: cleanViewText(v.not_works) }, { onConflict: "author_id,segment_id" })
+    .upsert({ ...(authorId ? { author_id: authorId } : {}), segment_id: segmentId, works: cleanViewText(v.works), not_works: cleanViewText(v.not_works) }, { onConflict: "author_id,segment_id" })
     .select("id");
   if (error) return { ok: false, error: friendly(error) };
   if (!data?.length) return { ok: false, error: BLOCKED };

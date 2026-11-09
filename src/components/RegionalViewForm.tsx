@@ -6,11 +6,13 @@ import { SaveIndicator, useAutosave } from "@/components/useAutosave";
 import { isViewFilled, VIEW_MAX } from "@/lib/regional";
 
 /** Ficha de um segmento: o que funciona e o que não funciona na região. Salva sozinha. */
-export function RegionalViewForm({ segmentId, segmentName, initial, readOnly }: {
+export function RegionalViewForm({ segmentId, segmentName, initial, readOnly, authorId }: {
   segmentId: string; segmentName: string; initial: { works: string; not_works: string }; readOnly: boolean;
+  /** a Diretoria edita em nome de um diretor */
+  authorId?: string;
 }) {
   const [v, setV] = useState(initial);
-  const { status, saveNow } = useAutosave(v, (values) => saveRegionalView(segmentId, values), { disabled: readOnly });
+  const { status, saveNow } = useAutosave(v, (values) => saveRegionalView(segmentId, values, authorId), { disabled: readOnly });
   const filled = isViewFilled(v);
 
   return (

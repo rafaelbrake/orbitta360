@@ -194,8 +194,10 @@ export async function reopenBu(fd: FormData) {
 export async function reopenMmt(fd: FormData) {
   const { supabase } = await requireProfile("admin");
   const userId = String(fd.get("user_id") ?? "");
+  const raw = String(fd.get("back") ?? "");
+  const back = /^\/admin\/diretores(\/[0-9a-f-]{36})?$/i.test(raw) ? raw : "/admin"; // só volta para telas da Diretoria
   const { error } = await supabase.rpc("reopen_mmt", { p_user: userId });
-  if (error) flash("/admin", "erro", error.message);
+  if (error) flash(back, "erro", error.message);
   revalidatePath("/", "layout");
-  flash("/admin", "ok", "Envio do diretor reaberto.");
+  flash(back, "ok", "Envio do diretor reaberto.");
 }
