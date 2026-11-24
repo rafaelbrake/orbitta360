@@ -4,7 +4,7 @@ import { effectivePitch, type PitchData } from "@/lib/book";
 import { loadRanking } from "@/lib/consolidated";
 import { DIRECTORS_ENABLED } from "@/lib/features";
 import { isViewFilled } from "@/lib/regional";
-import { buildActionItems, type ActionPlanLite, type MmtRecordLite, type RoundRow } from "@/lib/rounds";
+import { buildActionItems, customToItem, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow, type RoundRow } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
 import type { Level } from "@/lib/segment";
 import { requireSegmentAccess } from "@/lib/segment-data";
@@ -27,7 +27,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const round = rounds[pos];
   const buIds = new Set(round.buIds);
 
-  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR] = await Promise.all([
+  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,level,note,pitch_validated").eq("segment_id", id).eq("round_id", roundId),
     supabase.from("segment_strategies").select("status").eq("segment_id", id).maybeSingle(),
@@ -38,6 +38,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
     supabase.from("mmt_action_plan").select("record_id,decision,owner,due_date,note").eq("segment_id", id),
     supabase.from("round_notes").select("notes").eq("segment_id", id).eq("round_id", roundId).maybeSingle(),
     supabase.from("segment_priorities").select("offer_id").eq("segment_id", id).limit(1),
+    supabase.from("round_action_items").select("id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).eq("round_id", roundId).order("created_at"),
   ]);
   const rows = ranking.filter((r) => buIds.has(r.bu.id));
   const offerIds = rows.map((r) => r.offerId);
@@ -68,10 +69,13 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
 
   const mmtOfferIds = [...new Set(mmt.filter((m) => buIds.has(m.bu_id)).map((m) => m.offer_id).filter((x): x is string => !!x))];
   const { data: mmtOffers } = mmtOfferIds.length ? await supabase.from("offers").select("id,name").in("id", mmtOfferIds) : { data: [] };
-  const items = buildActionItems(
-    mmt, new Map(((planR.data ?? []) as ActionPlanLite[]).map((p) => [p.record_id, p])), buIds,
-    new Map(config.bus.map((b) => [b.id, b.code])), new Map((mmtOffers ?? []).map((o) => [o.id as string, o.name as string])),
-  );
+  const items = [
+    ...buildActionItems(
+      mmt, new Map(((planR.data ?? []) as ActionPlanLite[]).map((p) => [p.record_id, p])), buIds,
+      new Map(config.bus.map((b) => [b.id, b.code])), new Map((mmtOffers ?? []).map((o) => [o.id as string, o.name as string])),
+    ),
+    ...((newR.data ?? []) as RoundActionItemRow[]).map((r) => customToItem(r, new Map(config.bus.map((b) => [b.id, b.code])))),
+  ];
   const regional = ((viewsR.data ?? []) as { regional: string | null; works: string | null; not_works: string | null }[])
     .filter((v) => isViewFilled(v)).map((v) => ({ regional: v.regional || "—", works: v.works, not_works: v.not_works }));
   const final = stR.data?.status === "final";
@@ -80,7 +84,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   return (
     <RoundDeck
       segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final}
-      round={{ id: round.id, position: round.position, name: round.name, context: round.context, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort() }}
+      round={{ id: round.id, position: round.position, name: round.name, context: round.context, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
       rows={deckRows} items={items} regional={regional} notes={(noteR.data?.notes as string | null) ?? ""} hasDraft={(draftR.data ?? []).length > 0}
       initialKey={typeof sp.s === "string" ? sp.s : undefined}

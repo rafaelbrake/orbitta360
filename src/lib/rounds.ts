@@ -53,9 +53,10 @@ export interface RoundRow {
   signals: { regional: string; type: string }[];
 }
 
-/** Um ponto dos regionais (Manter / Mudar / Treinar) com a decisão tomada na rodada, se houver. */
+/** Um ponto da rodada: ou um ponto dos regionais (Manter / Mudar / Treinar) com a decisão tomada, ou um item novo incluído na sala. */
 export interface ActionItem {
-  recordId: string; type: string; regional: string; buCode: string; offerName: string | null;
+  /** id do registro do regional ou, nos itens novos (custom), id do próprio item */
+  recordId: string; custom: boolean; type: string; regional: string; buCode: string; offerName: string | null;
   headline: string | null; evidence: string | null; action: string | null; indicator: string | null; audience: string | null; priority: string | null;
   decision: Decision | null; owner: string; due: string; note: string;
 }
@@ -70,17 +71,19 @@ export type RoundSlide =
   | { key: "resumo"; kind: "resumo"; title: string };
 
 /**
- * Telas da rodada: abertura, contexto (só se houver texto), mesa de decisão, uma tela por oferta em Foco
- * (da maior nota para a menor), a visão das regiões (só se houver), o plano de ação (só se houver pontos) e o fechamento.
+ * Telas da rodada: abertura, contexto (só se houver texto), o que dizem as regiões (só se houver), mesa de decisão,
+ * uma tela por oferta em Foco (da maior nota para a menor), o plano de ação e o fechamento.
  */
-export function buildRoundSlides(rows: Pick<RoundRow, "offerId" | "name" | "score" | "level">[], opts: { hasContext: boolean; hasRegional: boolean; hasActions: boolean }): RoundSlide[] {
+export function buildRoundSlides(rows: Pick<RoundRow, "offerId" | "name" | "score" | "level">[], opts: { hasContext: boolean; hasRegional: boolean }): RoundSlide[] {
   const slides: RoundSlide[] = [{ key: "abertura", kind: "abertura", title: "Abertura da rodada" }];
   if (opts.hasContext) slides.push({ key: "contexto", kind: "contexto", title: "Contexto" });
+  // o que as regiões dizem vem antes de decidir o Foco: ajuda na escolha
+  if (opts.hasRegional) slides.push({ key: "regioes", kind: "regioes", title: "O que dizem as regiões" });
   slides.push({ key: "mesa", kind: "mesa", title: "Mesa de decisão" });
   const foco = rows.filter((r) => r.level === "foco").sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "pt-BR"));
   for (const r of foco) slides.push({ key: `oferta:${r.offerId}`, kind: "oferta", title: r.name, offerId: r.offerId });
-  if (opts.hasRegional) slides.push({ key: "regioes", kind: "regioes", title: "O que dizem as regiões" });
-  if (opts.hasActions) slides.push({ key: "plano", kind: "plano", title: "Plano de ação" });
+  // o plano sempre existe: mesmo sem pontos dos regionais, o líder pode incluir itens novos
+  slides.push({ key: "plano", kind: "plano", title: "Plano de ação" });
   slides.push({ key: "resumo", kind: "resumo", title: "Fechamento da rodada" });
   return slides;
 }
@@ -149,7 +152,7 @@ export function buildActionItems(
     .map((r): ActionItem => {
       const plan = plans.get(r.id);
       return {
-        recordId: r.id, type: r.type, regional: r.regional || "—", buCode: buCode.get(r.bu_id) ?? "—",
+        recordId: r.id, custom: false, type: r.type, regional: r.regional || "—", buCode: buCode.get(r.bu_id) ?? "—",
         offerName: r.offer_id ? (offerName.get(r.offer_id) ?? null) : null,
         headline: r.headline, evidence: r.evidence, action: r.action, indicator: r.indicator, audience: r.audience, priority: r.priority,
         decision: plan && isDecision(plan.decision) ? plan.decision : null,
@@ -158,3 +161,17 @@ export function buildActionItems(
     })
     .sort((a, b) => (PRIORITY_RANK[a.priority ?? ""] ?? 3) - (PRIORITY_RANK[b.priority ?? ""] ?? 3) || a.buCode.localeCompare(b.buCode) || (a.headline ?? "").localeCompare(b.headline ?? "", "pt-BR"));
 }
+
+export interface RoundActionItemRow { id: string; type: string | null; bu_id: string | null; headline: string; action: string | null; owner: string | null; due_date: string | null; note: string | null }
+
+/** Item novo (incluído na sala) no mesmo formato dos pontos dos regionais. Já nasce como decidido: foi o líder quem o criou. */
+export function customToItem(r: RoundActionItemRow, buCode: ReadonlyMap<string, string>): ActionItem {
+  return {
+    recordId: r.id, custom: true, type: r.type ?? "", regional: "", buCode: r.bu_id ? (buCode.get(r.bu_id) ?? "—") : "",
+    offerName: null, headline: r.headline, evidence: null, action: r.action, indicator: null, audience: null, priority: null,
+    decision: "validado", owner: r.owner ?? "", due: r.due_date ?? "", note: r.note ?? "",
+  };
+}
+
+export const cleanHeadline = (v: unknown): string | null => (typeof v === "string" ? v.trim().slice(0, 300) || null : null);
+export const cleanType = (v: unknown): "manter" | "mudar" | "treinar" | null => (v === "manter" || v === "mudar" || v === "treinar" ? v : null);

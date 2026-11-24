@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { copyLeaderDraft, saveActionItem, saveRoundNotes, setPitchValidated, setRoundPriority, setRoundPriorityNote } from "@/app/actions/rounds";
+import { copyLeaderDraft, createActionItem, deleteActionItem, saveActionItem, saveRoundNotes, setPitchValidated, setRoundPriority, setRoundPriorityNote, updateActionItem } from "@/app/actions/rounds";
 import { saveLeaderPitch } from "@/app/actions/segment";
 import { Icon } from "@/components/Icon";
 import { PitchForm, type PitchValues } from "@/components/PitchForm";
@@ -11,12 +11,12 @@ import { ClassBadge } from "@/components/ui";
 import { clip, hasPitchContent, type PitchData } from "@/lib/book";
 import { clampIndex, indexOfKey, keyToMove, slideCounter } from "@/lib/meeting";
 import { sanitizePitch } from "@/lib/pitch";
-import { DECISIONS, DECISION_LABEL, DECISION_STYLE, TYPE_LABEL, buildRoundSlides, isDecision, roundStats, type ActionItem, type Decision, type RoundRow } from "@/lib/rounds";
+import { DECISIONS, DECISION_LABEL, DECISION_STYLE, TYPE_LABEL, buildRoundSlides, customToItem, isDecision, roundStats, type ActionItem, type Decision, type RoundRow } from "@/lib/rounds";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/segment";
 
 export interface RoundDeckProps {
   segmentId: string; segmentName: string; leader: string | null; final: boolean; canEdit: boolean;
-  round: { id: string; position: number; name: string; context: string | null; focoLimit: number; buCodes: string[] };
+  round: { id: string; position: number; name: string; context: string | null; focoLimit: number; buCodes: string[]; buOptions: { id: string; code: string }[] };
   roundCount: number; prevRoundId: string | null; nextRoundId: string | null;
   rows: RoundRow[]; items: ActionItem[]; regional: { regional: string; works: string | null; not_works: string | null }[];
   notes: string; hasDraft: boolean;
@@ -58,8 +58,11 @@ export function RoundDeck(p: RoundDeckProps) {
   const [levelFilter, setLevelFilter] = useState("");
   const [onlyPending, setOnlyPending] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
+  const emptyNew = { type: "", buId: "", headline: "", action: "", owner: "", due: "" };
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState(emptyNew);
 
-  const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0, hasActions: items.length > 0 }), [rows, items.length, p.round.context, p.regional.length]);
+  const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0 }), [rows, p.round.context, p.regional.length]);
   const index = clampIndex(indexOfKey(slides, key), slides.length);
   const slide = slides[index];
   const stats = roundStats(rows, items);
@@ -119,6 +122,28 @@ export function RoundDeck(p: RoundDeckProps) {
     if (!res.ok) { setItems((l) => l.map((i) => (i.recordId === item.recordId ? item : i))); setErr(item.recordId, res.error); }
   }
   const editItem = (item: ActionItem, change: Partial<ActionItem>) => setItems((l) => l.map((i) => (i.recordId === item.recordId ? { ...i, ...change } : i)));
+  const buIdOf = (code: string) => p.round.buOptions.find((b) => b.code === code)?.id ?? "";
+  const toInput = (i: ActionItem) => ({ type: i.type, buId: buIdOf(i.buCode), headline: i.headline ?? "", action: i.action ?? "", owner: i.owner, due: i.due, note: i.note });
+  async function addItem() {
+    setErr("novo", null);
+    const res = await createActionItem(p.segmentId, p.round.id, { ...draft, note: "" });
+    if (!res.ok) { setErr("novo", res.error); return; }
+    setItems((l) => [...l, customToItem(res.item, new Map(p.round.buOptions.map((b) => [b.id, b.code])))]);
+    setDraft(emptyNew); setAdding(false);
+  }
+  async function commitCustom(item: ActionItem, change: Partial<ActionItem>) {
+    const next = { ...item, ...change };
+    setItems((l) => l.map((i) => (i.recordId === item.recordId ? next : i)));
+    setErr(item.recordId, null);
+    const res = await updateActionItem(item.recordId, toInput(next));
+    if (!res.ok) { setItems((l) => l.map((i) => (i.recordId === item.recordId ? item : i))); setErr(item.recordId, res.error); }
+  }
+  async function removeItem(item: ActionItem) {
+    if (!window.confirm("Remover este item do plano de ação?")) return;
+    const res = await deleteActionItem(item.recordId);
+    if (!res.ok) { setErr(item.recordId, res.error); return; }
+    setItems((l) => l.filter((i) => i.recordId !== item.recordId));
+  }
 
   const { status: notesStatus, saveNow: saveNotesNow } = useAutosave(notes, (v) => saveRoundNotes(p.segmentId, p.round.id, v), { disabled: !p.canEdit });
 
@@ -282,23 +307,74 @@ export function RoundDeck(p: RoundDeckProps) {
         );
       case "plano": {
         const shown = items.filter((i) => (!typeFilter || i.type === typeFilter) && (!onlyPending || !i.decision));
+        const regionalCount = items.filter((i) => !i.custom).length;
         return (
           <div className="mx-auto max-w-7xl">
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <h2 className="text-5xl text-(--forest)">Plano de ação</h2>
               <span className="badge !text-base bg-(--brand-50) text-(--ink-2)">{stats.acoesDecididas} de {stats.acoesTotal} com decisão</span>
+              {p.canEdit && <button type="button" className="btn btn-primary ml-auto" onClick={() => setAdding((v) => !v)}><Icon name={adding ? "close" : "add"} size={18} />{adding ? "Cancelar" : "Incluir item"}</button>}
             </div>
-            <p className="mb-3 text-xl text-(--ink-2)">O que os diretores regionais pediram sobre as BUs desta rodada. Valide, ajuste ou descarte, e diga quem faz e até quando.</p>
+            <p className="mb-3 text-xl text-(--ink-2)">O que os diretores regionais pediram sobre as BUs desta rodada. Valide, ajuste ou descarte, e diga quem faz e até quando. O que surgir na sala entra como item novo.</p>
+            {adding && (
+              <form className="mb-4 space-y-3 rounded-2xl border border-(--brand) bg-(--brand-50) p-4" onSubmit={(e) => { e.preventDefault(); void addItem(); }}>
+                <div className="grid gap-3 md:grid-cols-[1fr_11rem_11rem]">
+                  <input aria-label="Novo item" className="input !text-lg" maxLength={300} required autoFocus placeholder="O que precisa ser feito" value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })} />
+                  <select aria-label="Tipo do item" className="input" value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value })}>
+                    <option value="">Sem tipo</option>{Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <select aria-label="BU do item" className="input" value={draft.buId} onChange={(e) => setDraft({ ...draft, buId: e.target.value })}>
+                    <option value="">Qualquer BU</option>{p.round.buOptions.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+                  </select>
+                </div>
+                <input aria-label="Como fazer" className="input" maxLength={500} placeholder="Como fazer (opcional)" value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} />
+                <div className="grid gap-3 md:grid-cols-[1fr_10rem_auto]">
+                  <input aria-label="Responsável do novo item" className="input" maxLength={120} placeholder="Responsável" value={draft.owner} onChange={(e) => setDraft({ ...draft, owner: e.target.value })} />
+                  <input aria-label="Prazo do novo item" type="date" className="input" value={draft.due} onChange={(e) => setDraft({ ...draft, due: e.target.value })} />
+                  <button type="submit" className="btn btn-primary"><Icon name="add" size={18} />Adicionar ao plano</button>
+                </div>
+                {err("novo")}
+              </form>
+            )}
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <select aria-label="Filtrar por tipo" className="input !w-44" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option value="">Todos os tipos</option>{Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
               <label className="flex items-center gap-2 text-base font-medium"><input type="checkbox" className="size-5" checked={onlyPending} onChange={(e) => setOnlyPending(e.target.checked)} />Só os pendentes</label>
-              <span className="text-sm text-(--ink-3)">{shown.length} {shown.length === 1 ? "ponto" : "pontos"}</span>
+              <span className="text-sm text-(--ink-3)">{shown.length} {shown.length === 1 ? "ponto" : "pontos"} · {regionalCount} dos regionais · {items.length - regionalCount} {items.length - regionalCount === 1 ? "item novo" : "itens novos"}</span>
             </div>
-            <div className="max-h-[62vh] space-y-3 overflow-auto pr-1">
-              {shown.length === 0 && <p className="rounded-xl border border-dashed border-(--line-strong) p-6 text-xl text-(--ink-3)">Nenhum ponto nesse filtro.</p>}
-              {shown.map((i) => (
+            <div className="max-h-[56vh] space-y-3 overflow-auto pr-1">
+              {shown.length === 0 && <p className="rounded-xl border border-dashed border-(--line-strong) p-6 text-xl text-(--ink-3)">{items.length === 0 ? "Nenhum ponto dos regionais nesta rodada. Se surgir algo na sala, inclua um item novo." : "Nenhum ponto nesse filtro."}</p>}
+              {shown.map((i) => i.custom ? (
+                <div key={i.recordId} className="grid gap-4 rounded-xl border border-(--brand) bg-(--brand-50) p-4 xl:grid-cols-[1fr_26rem]">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="badge !text-base bg-(--brand) text-white">Item novo</span>
+                      <select aria-label="Tipo do item" disabled={!p.canEdit} className="input !min-h-9 !w-36" value={i.type} onChange={(e) => void commitCustom(i, { type: e.target.value })}>
+                        <option value="">Sem tipo</option>{Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <select aria-label="BU do item" disabled={!p.canEdit} className="input !min-h-9 !w-36" value={buIdOf(i.buCode)} onChange={(e) => void commitCustom(i, { buCode: p.round.buOptions.find((b) => b.id === e.target.value)?.code ?? "" })}>
+                        <option value="">Qualquer BU</option>{p.round.buOptions.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
+                      </select>
+                    </div>
+                    <input aria-label="O item" className="input !text-lg font-semibold" maxLength={300} disabled={!p.canEdit} value={i.headline ?? ""}
+                      onChange={(e) => editItem(i, { headline: e.target.value })} onBlur={() => { if ((i.headline ?? "").trim()) void commitCustom(i, {}); }} />
+                    <input aria-label="Como fazer" className="input" maxLength={500} disabled={!p.canEdit} placeholder="Como fazer" value={i.action ?? ""}
+                      onChange={(e) => editItem(i, { action: e.target.value })} onBlur={() => void commitCustom(i, {})} />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-[1fr_9.5rem] gap-2">
+                      <input aria-label="Responsável" className="input" maxLength={120} placeholder="Responsável" disabled={!p.canEdit} value={i.owner}
+                        onChange={(e) => editItem(i, { owner: e.target.value })} onBlur={() => void commitCustom(i, {})} />
+                      <input aria-label="Prazo" type="date" className="input" disabled={!p.canEdit} value={i.due} onChange={(e) => void commitCustom(i, { due: e.target.value })} />
+                    </div>
+                    <input aria-label="Observação" className="input" maxLength={500} placeholder="Observação" disabled={!p.canEdit} value={i.note}
+                      onChange={(e) => editItem(i, { note: e.target.value })} onBlur={() => void commitCustom(i, {})} />
+                    {p.canEdit && <button type="button" className="btn btn-sm" onClick={() => void removeItem(i)}><Icon name="delete" size={16} />Remover item</button>}
+                    {err(i.recordId)}
+                  </div>
+                </div>
+              ) : (
                 <div key={i.recordId} className="grid gap-4 rounded-xl border border-(--line) p-4 xl:grid-cols-[1fr_26rem]">
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">

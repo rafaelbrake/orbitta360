@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildActionItems, buildRoundSlides, cleanContext, cleanDueDate, cleanLimit, cleanOwner, focoTotals, isDecision, planDraftCopy, roundDone, roundOfBu, roundStats,
+  buildActionItems, buildRoundSlides, customToItem, cleanHeadline, cleanType, cleanContext, cleanDueDate, cleanLimit, cleanOwner, focoTotals, isDecision, planDraftCopy, roundDone, roundOfBu, roundStats,
   type ActionPlanLite, type MmtRecordLite, type Round,
 } from "../src/lib/rounds";
 import { indexOfKey } from "../src/lib/meeting";
@@ -9,17 +9,17 @@ import type { Level } from "../src/lib/segment";
 const rows = (l: [string, number, Level | null][]) => l.map(([offerId, score, level]) => ({ offerId, name: offerId.toUpperCase(), score, level, pitchValidated: false }));
 
 describe("rodadas: telas", () => {
-  it("monta abertura, mesa, uma tela por oferta em Foco (maior nota primeiro), regiões, plano e fechamento", () => {
-    const s = buildRoundSlides(rows([["a", 70, "foco"], ["b", 90, "foco"], ["c", 95, "apoio"], ["d", 10, null]]), { hasContext: false, hasRegional: true, hasActions: true });
-    expect(s.map((x) => x.key)).toEqual(["abertura", "mesa", "oferta:b", "oferta:a", "regioes", "plano", "resumo"]);
+  it("monta abertura, regiões (antes de decidir o Foco), mesa, uma tela por oferta em Foco (maior nota primeiro), plano e fechamento", () => {
+    const s = buildRoundSlides(rows([["a", 70, "foco"], ["b", 90, "foco"], ["c", 95, "apoio"], ["d", 10, null]]), { hasContext: false, hasRegional: true });
+    expect(s.map((x) => x.key)).toEqual(["abertura", "regioes", "mesa", "oferta:b", "oferta:a", "plano", "resumo"]);
   });
-  it("contexto, regiões e plano só aparecem quando há conteúdo", () => {
-    expect(buildRoundSlides([], { hasContext: false, hasRegional: false, hasActions: false }).map((x) => x.key)).toEqual(["abertura", "mesa", "resumo"]);
-    expect(buildRoundSlides([], { hasContext: true, hasRegional: false, hasActions: false }).map((x) => x.key)).toEqual(["abertura", "contexto", "mesa", "resumo"]);
+  it("contexto e regiões só aparecem quando há conteúdo; o plano sempre existe (dá para incluir itens novos)", () => {
+    expect(buildRoundSlides([], { hasContext: false, hasRegional: false }).map((x) => x.key)).toEqual(["abertura", "mesa", "plano", "resumo"]);
+    expect(buildRoundSlides([], { hasContext: true, hasRegional: false }).map((x) => x.key)).toEqual(["abertura", "contexto", "mesa", "plano", "resumo"]);
   });
   it("tirar uma oferta do Foco leva de volta para a mesa", () => {
-    const s = buildRoundSlides(rows([["a", 70, "foco"]]), { hasContext: false, hasRegional: false, hasActions: false });
-    const after = buildRoundSlides(rows([["a", 70, "apoio"]]), { hasContext: false, hasRegional: false, hasActions: false });
+    const s = buildRoundSlides(rows([["a", 70, "foco"]]), { hasContext: false, hasRegional: false });
+    const after = buildRoundSlides(rows([["a", 70, "apoio"]]), { hasContext: false, hasRegional: false });
     expect(indexOfKey(after, "oferta:a")).toBe(after.findIndex((x) => x.key === "mesa"));
     expect(s.length).toBe(after.length + 1);
   });
@@ -58,6 +58,24 @@ describe("rodadas: plano de ação", () => {
     expect(items[0]).toMatchObject({ decision: "validado", owner: "Ana", due: "2027-02-01", note: "ok", offerName: "Etiquetas RF", buCode: "PRT" });
     expect(items[1].decision).toBeNull();
     expect(items[2].decision).toBeNull(); // decisão fora da lista é ignorada
+  });
+});
+
+describe("rodadas: itens novos do plano", () => {
+  it("o item novo aparece no mesmo formato dos pontos dos regionais, já decidido", () => {
+    const i = customToItem({ id: "n1", type: "treinar", bu_id: "b1", headline: "Treinar AMs", action: "Workshop", owner: "Ana", due_date: "2027-03-01", note: null }, new Map([["b1", "LBL"]]));
+    expect(i).toMatchObject({ recordId: "n1", custom: true, type: "treinar", buCode: "LBL", headline: "Treinar AMs", decision: "validado", owner: "Ana", due: "2027-03-01", note: "" });
+    expect(roundStats([], [i]).acoesDecididas).toBe(1);
+  });
+  it("sem tipo nem BU também vale", () => {
+    expect(customToItem({ id: "n2", type: null, bu_id: null, headline: "Algo", action: null, owner: null, due_date: null, note: null }, new Map())).toMatchObject({ type: "", buCode: "", owner: "" });
+  });
+  it("título é obrigatório e o tipo só da lista", () => {
+    expect(cleanHeadline("  Item  ")).toBe("Item");
+    expect(cleanHeadline("   ")).toBeNull();
+    expect(cleanHeadline("x".repeat(400))).toHaveLength(300);
+    expect(cleanType("mudar")).toBe("mudar");
+    expect(cleanType("outro")).toBeNull();
   });
 });
 

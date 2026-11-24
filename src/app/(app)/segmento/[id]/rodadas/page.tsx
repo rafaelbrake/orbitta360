@@ -6,7 +6,7 @@ import { StatTile } from "@/components/StatTile";
 import { BackLink, Notice, PageHeader } from "@/components/ui";
 import { loadRanking } from "@/lib/consolidated";
 import { fmtDate } from "@/lib/data";
-import { DECISION_LABEL, TYPE_LABEL, buildActionItems, focoTotals, isDecision, roundDone, roundStats, type ActionPlanLite, type MmtRecordLite } from "@/lib/rounds";
+import { DECISION_LABEL, TYPE_LABEL, buildActionItems, customToItem, focoTotals, isDecision, roundDone, roundStats, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
 import type { Level } from "@/lib/segment";
 import { requireSegmentAccess } from "@/lib/segment-data";
@@ -20,12 +20,14 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
   const { supabase, config, segment } = await requireSegmentAccess(id);
   const rounds = await loadRounds(supabase);
 
-  const [ranking, prR, mmtR, planR] = await Promise.all([
+  const [ranking, prR, mmtR, planR, newR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,round_id,level,pitch_validated").eq("segment_id", id),
     supabase.from("mmt_records").select("id,type,bu_id,offer_id,regional,priority,headline,evidence,action,indicator,audience").eq("segment_id", id),
     supabase.from("mmt_action_plan").select("record_id,decision,owner,due_date,note").eq("segment_id", id),
+    supabase.from("round_action_items").select("id,round_id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).order("created_at"),
   ]);
+  const newItems = (newR.data ?? []) as (RoundActionItemRow & { round_id: string })[];
   const prio = new Map((prR.data ?? []).map((r) => [r.offer_id as string, { level: r.level as Level, pitchValidated: r.pitch_validated === true }]));
   const buCode = new Map(config.bus.map((b) => [b.id, b.code]));
   const mmt = (mmtR.data ?? []) as MmtRecordLite[];
@@ -36,7 +38,10 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
   const perRound = rounds.map((r) => {
     const buIds = new Set(r.buIds);
     const rows = ranking.filter((x) => buIds.has(x.bu.id)).map((x) => ({ ...x, level: prio.get(x.offerId)?.level ?? null, pitchValidated: prio.get(x.offerId)?.pitchValidated ?? false }));
-    const items = buildActionItems(mmt, plans, buIds, buCode, new Map((offerRows ?? []).map((o) => [o.id as string, o.name as string])));
+    const items = [
+      ...buildActionItems(mmt, plans, buIds, buCode, new Map((offerRows ?? []).map((o) => [o.id as string, o.name as string]))),
+      ...newItems.filter((n) => n.round_id === r.id).map((n) => customToItem(n, buCode)),
+    ];
     return { round: r, rows, items, stats: roundStats(rows, items) };
   });
   const totals = focoTotals(rounds, new Map(perRound.map((p) => [p.round.id, p.stats])));
@@ -112,9 +117,9 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
               <tbody>
                 {decided.map((i) => (
                   <tr key={i.recordId} className={i.decision === "descartado" ? "opacity-60" : ""}>
-                    <td className="td text-sm">{i.round}</td><td className="td">{i.buCode}</td><td className="td">{TYPE_LABEL[i.type] ?? i.type}</td>
+                    <td className="td text-sm">{i.round}</td><td className="td">{i.buCode || "—"}</td><td className="td">{TYPE_LABEL[i.type] ?? (i.custom ? "Ação" : i.type)}</td>
                     <td className="td"><div className="font-semibold">{i.headline || "—"}</div>{i.offerName && <div className="text-xs text-(--ink-3)">{i.offerName}</div>}{i.note && <div className="text-xs text-(--ink-2)">{i.note}</div>}</td>
-                    <td className="td">{i.decision && isDecision(i.decision) ? DECISION_LABEL[i.decision] : "—"}</td>
+                    <td className="td">{i.custom ? "Item novo" : i.decision && isDecision(i.decision) ? DECISION_LABEL[i.decision] : "—"}</td>
                     <td className="td text-sm">{i.owner || "—"}</td><td className="td whitespace-nowrap text-sm">{i.due ? fmtDate(i.due) : "—"}</td>
                   </tr>
                 ))}

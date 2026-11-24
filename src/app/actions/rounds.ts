@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { flash } from "@/lib/flash";
 import { requireProfile } from "@/lib/session";
 import { cleanNote, cleanText, isLevel, type Level } from "@/lib/segment";
-import { cleanActionNote, cleanContext, cleanDueDate, cleanLimit, cleanOwner, isDecision, planDraftCopy, type Decision } from "@/lib/rounds";
+import { cleanActionNote, cleanContext, cleanDueDate, cleanHeadline, cleanLimit, cleanOwner, cleanType, isDecision, planDraftCopy, type Decision, type RoundActionItemRow } from "@/lib/rounds";
 import type { SaveResult } from "@/app/actions/bu";
 
 const BLOCKED = "Edição bloqueada: a versão final está travada ou você não lidera este segmento.";
@@ -68,6 +68,51 @@ export async function saveActionItem(recordId: string, v: { decision: Decision |
   if ((v.due ?? "").trim() !== "" && due === null) return { ok: false, error: "Prazo inválido." };
   const row = { record_id: recordId, decision: v.decision, owner: cleanOwner(v.owner), due_date: due, note: cleanActionNote(v.note) };
   const { data, error } = await supabase.from("mmt_action_plan").upsert(row, { onConflict: "record_id" }).select("record_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+export interface ItemInput { type: string; buId: string; headline: string; action: string; owner: string; due: string; note: string }
+
+function itemRow(v: ItemInput): { ok: true; row: Record<string, unknown> } | { ok: false; error: string } {
+  const headline = cleanHeadline(v.headline);
+  if (!headline) return { ok: false, error: "Escreva o item." };
+  const due = (v.due ?? "").trim() === "" ? null : cleanDueDate(v.due);
+  if ((v.due ?? "").trim() !== "" && due === null) return { ok: false, error: "Prazo inválido." };
+  const buId = (v.buId ?? "") === "" ? null : v.buId;
+  if (buId !== null && !isUuid(buId)) return { ok: false, error: "BU inválida." };
+  return { ok: true, row: { type: cleanType(v.type), bu_id: buId, headline, action: cleanActionNote(v.action), owner: cleanOwner(v.owner), due_date: due, note: cleanActionNote(v.note) } };
+}
+
+/** Inclui um item novo no plano de ação da rodada. */
+export async function createActionItem(segmentId: string, roundId: string, v: ItemInput): Promise<{ ok: true; item: RoundActionItemRow } | { ok: false; error: string }> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(roundId)) return { ok: false, error: "Dados inválidos." };
+  const r = itemRow(v);
+  if (!r.ok) return r;
+  const { data, error } = await supabase.from("round_action_items").insert({ segment_id: segmentId, round_id: roundId, ...r.row }).select("id,type,bu_id,headline,action,owner,due_date,note").single();
+  if (error) return { ok: false, error: friendly(error) };
+  return { ok: true, item: data as RoundActionItemRow };
+}
+
+/** Salva as mudanças de um item novo. */
+export async function updateActionItem(id: string, v: ItemInput): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(id)) return { ok: false, error: "Dados inválidos." };
+  const r = itemRow(v);
+  if (!r.ok) return r;
+  const { data, error } = await supabase.from("round_action_items").update(r.row).eq("id", id).select("id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+/** Remove um item novo. */
+export async function deleteActionItem(id: string): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(id)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("round_action_items").delete().eq("id", id).select("id");
   if (error) return { ok: false, error: friendly(error) };
   if (!data?.length) return { ok: false, error: BLOCKED };
   return done();

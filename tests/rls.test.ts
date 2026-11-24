@@ -78,6 +78,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0012_segment_pitches.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0013_meeting_mode.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0014_meeting_rounds.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0015_round_action_items.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1362,5 +1363,47 @@ describe("rodadas da reunião: Foco por grupo de BUs, validação do pitch e pla
     await fails(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'ajustar')", [recs.saudeCyb]);
     await as(ID.admin, "select reopen_segment($1)", [saude()]);
     expect(await as(ID.diretor, "update mmt_action_plan set note='de novo' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);
+  });
+});
+
+describe("itens novos no plano de ação da rodada", () => {
+  // Sul (ID.diretor) lidera Saúde · SP (ID.diretor2) lidera Varejo · Norte (ID.diretor3) não lidera
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  let round1 = "", round2 = "", item = "";
+
+  it("o líder inclui, edita e apaga itens do segmento dele; a BU precisa ser da rodada", async () => {
+    await sup("update segment_strategies set status='draft', finalized_at=null where segment_id in ($1,$2)", [saude(), varejo()]);
+    const rs = await sup<{ id: string; position: number }>("select id, position from meeting_rounds");
+    round1 = rs.find((r) => r.position === 1)!.id; round2 = rs.find((r) => r.position === 2)!.id;
+    item = (await as<{ id: string }>(ID.diretor, "insert into round_action_items (segment_id,round_id,type,bu_id,headline,action,owner,due_date) values ($1,$2,'treinar',$3,'Treinar AMs em RFID','Workshop de 4h','Ana','2027-03-01') returning id", [saude(), round1, buId.LBL]))[0].id;
+    await as(ID.diretor, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'Item sem tipo nem BU')", [saude(), round1]);
+    await expect(as(ID.diretor, "insert into round_action_items (segment_id,round_id,bu_id,headline) values ($1,$2,$3,'BU de outra rodada')", [saude(), round1, buId.CYB])).rejects.toThrow(/BU do item precisa fazer parte/);
+    await fails(ID.diretor, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'   ')", [saude(), round1]);
+    await fails(ID.diretor, "insert into round_action_items (segment_id,round_id,type,headline) values ($1,$2,'urgente','x')", [saude(), round1]);
+    expect(await as(ID.diretor, "update round_action_items set owner='Bia', note='ok' where id=$1 returning 1", [item])).toHaveLength(1);
+    await fails(ID.diretor, "update round_action_items set round_id=$1 where id=$2", [round2, item]);
+    await fails(ID.diretor, "update round_action_items set segment_id=$1 where id=$2", [varejo(), item]);
+    expect(await as(ID.diretor, "select 1 from round_action_items where segment_id=$1", [saude()])).toHaveLength(2);
+    expect(await as(ID.diretor, "delete from round_action_items where headline='Item sem tipo nem BU' returning 1")).toHaveLength(1);
+  });
+
+  it("outro líder, quem não lidera e head não leem nem escrevem; a Diretoria enxerga tudo", async () => {
+    expect(await as(ID.diretor2, "select 1 from round_action_items")).toHaveLength(0);
+    expect(await as(ID.diretor3, "select 1 from round_action_items")).toHaveLength(0);
+    expect(await as(ID.headLBL, "select 1 from round_action_items")).toHaveLength(0);
+    await fails(ID.diretor2, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'invasor')", [saude(), round1]);
+    expect(await as(ID.diretor2, "update round_action_items set owner='x' where id=$1 returning 1", [item])).toHaveLength(0);
+    expect(await as(ID.diretor2, "delete from round_action_items where id=$1 returning 1", [item])).toHaveLength(0);
+    expect(await as(ID.admin, "select 1 from round_action_items")).toHaveLength(1);
+  });
+
+  it("depois da versão final nada muda; a Diretoria reabre", async () => {
+    await as(ID.diretor, "select finalize_segment($1)", [saude()]);
+    await fails(ID.diretor, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'tarde')", [saude(), round1]);
+    expect(await as(ID.diretor, "update round_action_items set owner='tarde' where id=$1 returning 1", [item])).toHaveLength(0);
+    expect(await as(ID.diretor, "delete from round_action_items where id=$1 returning 1", [item])).toHaveLength(0);
+    await as(ID.admin, "select reopen_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update round_action_items set owner='de novo' where id=$1 returning 1", [item])).toHaveLength(1);
   });
 });
