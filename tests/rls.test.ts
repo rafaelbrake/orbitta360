@@ -79,6 +79,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0013_meeting_mode.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0014_meeting_rounds.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0015_round_action_items.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0016_round_context.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1405,5 +1406,49 @@ describe("itens novos no plano de ação da rodada", () => {
     expect(await as(ID.diretor, "delete from round_action_items where id=$1 returning 1", [item])).toHaveLength(0);
     await as(ID.admin, "select reopen_segment($1)", [saude()]);
     expect(await as(ID.diretor, "update round_action_items set owner='de novo' where id=$1 returning 1", [item])).toHaveLength(1);
+  });
+});
+
+describe("telas de contexto das rodadas: números internos só para a Diretoria e para o líder do segmento", () => {
+  // Sul (ID.diretor) lidera Saúde · SP (ID.diretor2) lidera Varejo · Norte (ID.diretor3) não lidera
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  let round = "", geral = "", daSaude = "", doVarejo = "";
+
+  it("a Diretoria cria blocos gerais e por segmento; o formato do conteúdo e o tipo são validados", async () => {
+    round = (await sup<{ id: string }>("select id from meeting_rounds order by position limit 1"))[0].id;
+    const ins = async (seg: string | null, title: string) => (await as<{ id: string }>(ID.admin, "insert into round_context_blocks (round_id,segment_id,kind,title,body,source) values ($1,$2,'cards',$3,'{\"cards\":[{\"label\":\"x\",\"value\":\"1\"}]}'::jsonb,'Fonte X') returning id", [round, seg, title]))[0].id;
+    geral = await ins(null, "Mercado do grupo");
+    daSaude = await ins(saude(), "Saúde: faturamento");
+    doVarejo = await ins(varejo(), "Varejo: faturamento");
+    await fails(ID.admin, "insert into round_context_blocks (round_id,kind,title) values ($1,'grafico','x')", [round]);
+    await fails(ID.admin, "insert into round_context_blocks (round_id,kind,title) values ($1,'text','   ')", [round]);
+    await fails(ID.admin, "insert into round_context_blocks (round_id,kind,title,body) values ($1,'text','x','[1,2]'::jsonb)", [round]);
+  });
+
+  it("cada líder lê os blocos gerais e os do próprio segmento, e só esses", async () => {
+    const titles = async (u: string) => (await as<{ title: string }>(u, "select title from round_context_blocks order by title")).map((r) => r.title);
+    expect(await titles(ID.diretor)).toEqual(["Mercado do grupo", "Saúde: faturamento"]);
+    expect(await titles(ID.diretor2)).toEqual(["Mercado do grupo", "Varejo: faturamento"]);
+    expect((await titles(ID.admin)).length).toBe(3);
+  });
+
+  it("quem não lidera segmento e os heads não leem nada; ninguém além da Diretoria escreve", async () => {
+    expect(await as(ID.diretor3, "select 1 from round_context_blocks")).toHaveLength(0);
+    expect(await as(ID.headPRT, "select 1 from round_context_blocks")).toHaveLength(0);
+    expect(await as(ID.diretorDetalhe, "select 1 from round_context_blocks")).toHaveLength(0);
+    await fails(ID.diretor, "insert into round_context_blocks (round_id,kind,title) values ($1,'text','invasor')", [round]);
+    expect(await as(ID.diretor, "update round_context_blocks set title='mudei' where id=$1 returning 1", [daSaude])).toHaveLength(0);
+    expect(await as(ID.diretor, "delete from round_context_blocks where id=$1 returning 1", [geral])).toHaveLength(0);
+    expect(await as(ID.headPRT, "update round_context_blocks set title='mudei' where id=$1 returning 1", [geral])).toHaveLength(0);
+  });
+
+  it("a Diretoria edita e remove; apagar a rodada leva os blocos junto", async () => {
+    expect(await as(ID.admin, "update round_context_blocks set title='Mercado do grupo (rev.)', position=2 where id=$1 returning 1", [geral])).toHaveLength(1);
+    expect(await as(ID.admin, "delete from round_context_blocks where id=$1 returning 1", [doVarejo])).toHaveLength(1);
+    const r2 = (await sup<{ id: string }>("insert into meeting_rounds (position,name) values (99,'Temporária') returning id"))[0].id;
+    await sup("insert into round_context_blocks (round_id,kind,title) values ($1,'text','some junto')", [r2]);
+    await sup("delete from meeting_rounds where id=$1", [r2]);
+    expect(await sup("select 1 from round_context_blocks where round_id=$1", [r2])).toHaveLength(0);
   });
 });

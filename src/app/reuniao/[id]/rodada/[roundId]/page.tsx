@@ -6,6 +6,7 @@ import { DIRECTORS_ENABLED } from "@/lib/features";
 import { isViewFilled } from "@/lib/regional";
 import { buildActionItems, customToItem, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow, type RoundRow } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
+import { orderBlocks, toBlock, type BlockRow } from "@/lib/round-context";
 import type { Level } from "@/lib/segment";
 import { requireSegmentAccess } from "@/lib/segment-data";
 import { homeFor, requireProfile } from "@/lib/session";
@@ -27,7 +28,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const round = rounds[pos];
   const buIds = new Set(round.buIds);
 
-  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR] = await Promise.all([
+  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR, ctxR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,level,note,pitch_validated").eq("segment_id", id).eq("round_id", roundId),
     supabase.from("segment_strategies").select("status").eq("segment_id", id).maybeSingle(),
@@ -39,6 +40,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
     supabase.from("round_notes").select("notes").eq("segment_id", id).eq("round_id", roundId).maybeSingle(),
     supabase.from("segment_priorities").select("offer_id").eq("segment_id", id).limit(1),
     supabase.from("round_action_items").select("id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).eq("round_id", roundId).order("created_at"),
+    supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").eq("round_id", roundId).or(`segment_id.is.null,segment_id.eq.${id}`),
   ]);
   const rows = ranking.filter((r) => buIds.has(r.bu.id));
   const offerIds = rows.map((r) => r.offerId);
@@ -86,6 +88,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
       segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final}
       round={{ id: round.id, position: round.position, name: round.name, context: round.context, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
+      blocks={orderBlocks(((ctxR.data ?? []) as BlockRow[]).map(toBlock).filter((b): b is NonNullable<typeof b> => b !== null))}
       rows={deckRows} items={items} regional={regional} notes={(noteR.data?.notes as string | null) ?? ""} hasDraft={(draftR.data ?? []).length > 0}
       initialKey={typeof sp.s === "string" ? sp.s : undefined}
     />

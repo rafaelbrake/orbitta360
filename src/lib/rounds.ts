@@ -64,6 +64,7 @@ export interface ActionItem {
 export type RoundSlide =
   | { key: "abertura"; kind: "abertura"; title: string }
   | { key: "contexto"; kind: "contexto"; title: string }
+  | { key: string; kind: "bloco"; title: string; blockId: string }
   | { key: "mesa"; kind: "mesa"; title: string }
   | { key: string; kind: "oferta"; title: string; offerId: string }
   | { key: "regioes"; kind: "regioes"; title: string }
@@ -71,12 +72,13 @@ export type RoundSlide =
   | { key: "resumo"; kind: "resumo"; title: string };
 
 /**
- * Telas da rodada: abertura, contexto (só se houver texto), o que dizem as regiões (só se houver), mesa de decisão,
+ * Telas da rodada: abertura, contexto (texto da rodada e blocos com números), o que dizem as regiões (só se houver), mesa de decisão,
  * uma tela por oferta em Foco (da maior nota para a menor), o plano de ação e o fechamento.
  */
-export function buildRoundSlides(rows: Pick<RoundRow, "offerId" | "name" | "score" | "level">[], opts: { hasContext: boolean; hasRegional: boolean }): RoundSlide[] {
+export function buildRoundSlides(rows: Pick<RoundRow, "offerId" | "name" | "score" | "level">[], opts: { hasContext: boolean; hasRegional: boolean; blocks?: { id: string; title: string }[] }): RoundSlide[] {
   const slides: RoundSlide[] = [{ key: "abertura", kind: "abertura", title: "Abertura da rodada" }];
   if (opts.hasContext) slides.push({ key: "contexto", kind: "contexto", title: "Contexto" });
+  for (const b of opts.blocks ?? []) slides.push({ key: `bloco:${b.id}`, kind: "bloco", title: b.title, blockId: b.id });
   // o que as regiões dizem vem antes de decidir o Foco: ajuda na escolha
   if (opts.hasRegional) slides.push({ key: "regioes", kind: "regioes", title: "O que dizem as regiões" });
   slides.push({ key: "mesa", kind: "mesa", title: "Mesa de decisão" });

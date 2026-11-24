@@ -12,7 +12,8 @@
     "seed:demo": "tsx scripts/seed-demo.mts",
     "icons": "node scripts/gen-icons.mjs",
     "load:produtos": "tsx scripts/load-products.mts",
-    "load:heads": "tsx scripts/load-heads.mts"
+    "load:heads": "tsx scripts/load-heads.mts",
+    "load:contexto": "tsx scripts/load-round-context.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

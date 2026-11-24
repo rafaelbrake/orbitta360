@@ -10,6 +10,7 @@ import { SaveIndicator, useAutosave } from "@/components/useAutosave";
 import { ClassBadge } from "@/components/ui";
 import { clip, hasPitchContent, type PitchData } from "@/lib/book";
 import { clampIndex, indexOfKey, keyToMove, slideCounter } from "@/lib/meeting";
+import type { Cell, ContextBlock, Tone } from "@/lib/round-context";
 import { sanitizePitch } from "@/lib/pitch";
 import { DECISIONS, DECISION_LABEL, DECISION_STYLE, TYPE_LABEL, buildRoundSlides, customToItem, isDecision, roundStats, type ActionItem, type Decision, type RoundRow } from "@/lib/rounds";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/segment";
@@ -20,6 +21,8 @@ export interface RoundDeckProps {
   roundCount: number; prevRoundId: string | null; nextRoundId: string | null;
   rows: RoundRow[]; items: ActionItem[]; regional: { regional: string; works: string | null; not_works: string | null }[];
   notes: string; hasDraft: boolean;
+  /** telas de contexto (mercado, funil, faturamento…) desta rodada e deste segmento */
+  blocks?: ContextBlock[];
   /** tela em que a apresentação abre (vem do endereço, para atualizar a página sem perder o lugar) */
   initialKey?: string;
 }
@@ -45,6 +48,63 @@ function toValues(p: PitchData | null, r: Pick<RoundRow, "description" | "revenu
   };
 }
 
+const TONE_CELL: Record<Tone, string> = { ok: "bg-(--brand-100) text-(--brand-800) font-semibold", bad: "bg-red-100 text-red-800 font-semibold", hi: "bg-(--accent-100) text-(--accent-800) font-semibold" };
+const TONE_VALUE: Record<Tone, string> = { ok: "text-(--brand)", bad: "text-red-700", hi: "text-(--accent-800)" };
+const cellOf = (c: Cell): { v: string; t?: Tone } => (typeof c === "string" ? { v: c } : c);
+
+/** Uma tela de contexto: cartões, tabela, lista ou texto, com a fonte e a ressalva no pé. */
+function BlockSlide({ block }: { block: ContextBlock }) {
+  const b = block.body;
+  return (
+    <div className="mx-auto max-w-7xl">
+      <h2 className="text-5xl text-(--forest)">{block.title}</h2>
+      {block.subtitle && <p className="mt-2 text-xl text-(--ink-2)">{block.subtitle}</p>}
+      <div className="mt-6">
+        {"cards" in b && (
+          <div className={`grid gap-4 sm:grid-cols-2 ${b.cards.length <= 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
+            {b.cards.map((c, i) => (
+              <div key={i} className="rounded-2xl border border-(--line) bg-(--brand-50) p-5">
+                <div className={`font-semibold leading-none ${b.cards.length <= 3 ? "text-5xl" : "text-4xl"} ${c.tone ? TONE_VALUE[c.tone] : "text-(--forest)"}`}>{c.value}</div>
+                <div className="mt-3 text-xl font-semibold text-(--ink)">{c.label}</div>
+                {c.caption && <div className="mt-1 text-base text-(--ink-3)">{c.caption}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {"columns" in b && (
+          <div className="table-wrap !max-h-[58vh]">
+            <table className="min-w-[48rem] text-lg">
+              <thead><tr>{b.columns.map((c, i) => <th key={i} className={`th ${b.align?.[i] === "r" ? "text-right" : ""}`}>{c}</th>)}</tr></thead>
+              <tbody>
+                {b.rows.map((r, ri) => (
+                  <tr key={ri}>
+                    {r.map((raw, ci) => {
+                      const c = cellOf(raw);
+                      return <td key={ci} className={`td ${ci === 0 ? "font-semibold text-(--forest)" : ""} ${b.align?.[ci] === "r" ? "text-right tabular-nums whitespace-nowrap" : ""}`}><span className={c.t ? `rounded-md px-2 py-0.5 ${TONE_CELL[c.t]}` : ""}>{c.v}</span></td>;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {"items" in b && (
+          <ul className="grid gap-3 md:grid-cols-2">
+            {b.items.map((it, i) => (
+              <li key={i} className="rounded-xl border border-(--line) p-4 text-[22px] leading-snug">
+                {it.title && <div className="mb-1 font-semibold text-(--forest)">{it.title}</div>}{it.text}
+              </li>
+            ))}
+          </ul>
+        )}
+        {"paragraphs" in b && <div className="space-y-4">{b.paragraphs.map((t, i) => <p key={i} className="whitespace-pre-wrap text-[26px] leading-snug">{t}</p>)}</div>}
+      </div>
+      {block.note && <p className="mt-5 rounded-xl bg-amber-50 px-4 py-3 text-lg text-amber-900"><b>Ressalva:</b> {block.note}</p>}
+      {block.source && <p className="mt-3 text-sm text-(--ink-3)">Fonte: {block.source}</p>}
+    </div>
+  );
+}
+
 /** Apresentação de uma rodada (grupo de BUs) de um segmento: decisão de Foco, pitch, pontos dos regionais e fechamento. */
 export function RoundDeck(p: RoundDeckProps) {
   const [rows, setRows] = useState<RoundRow[]>(p.rows);
@@ -62,7 +122,7 @@ export function RoundDeck(p: RoundDeckProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(emptyNew);
 
-  const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0 }), [rows, p.round.context, p.regional.length]);
+  const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0, blocks: (p.blocks ?? []).map((b) => ({ id: b.id, title: b.title })) }), [rows, p.round.context, p.regional.length, p.blocks]);
   const index = clampIndex(indexOfKey(slides, key), slides.length);
   const slide = slides[index];
   const stats = roundStats(rows, items);
@@ -184,6 +244,10 @@ export function RoundDeck(p: RoundDeckProps) {
             <p className="mt-8 text-lg text-(--ink-3)">Use as setas ← → para navegar · F para tela cheia · {p.final ? "Versão final travada" : "Rascunho em edição"}</p>
           </div>
         );
+      case "bloco": {
+        const block = (p.blocks ?? []).find((x) => x.id === slide.blockId);
+        return block ? <BlockSlide block={block} /> : null;
+      }
       case "contexto":
         return (
           <div className="mx-auto max-w-5xl">

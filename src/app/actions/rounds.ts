@@ -5,6 +5,7 @@ import { flash } from "@/lib/flash";
 import { requireProfile } from "@/lib/session";
 import { cleanNote, cleanText, isLevel, type Level } from "@/lib/segment";
 import { cleanActionNote, cleanContext, cleanDueDate, cleanHeadline, cleanLimit, cleanOwner, cleanType, isDecision, planDraftCopy, type Decision, type RoundActionItemRow } from "@/lib/rounds";
+import { cleanShort, cleanTitle, isBlockKind, parseBody, type BlockKind } from "@/lib/round-context";
 import type { SaveResult } from "@/app/actions/bu";
 
 const BLOCKED = "Edição bloqueada: a versão final está travada ou você não lidera este segmento.";
@@ -185,4 +186,44 @@ export async function saveRounds(fd: FormData) {
   }
   revalidatePath(back);
   flash(back, "ok", "Rodadas salvas.");
+}
+
+/** Diretoria: cria ou atualiza uma tela de contexto da rodada. O conteúdo (JSON) é conferido pelo mesmo validador do carregador. */
+export async function saveContextBlock(fd: FormData) {
+  const back = "/admin/rodadas/contexto";
+  const { supabase } = await requireProfile("admin");
+  const id = String(fd.get("id") ?? "");
+  const roundId = String(fd.get("round_id") ?? "");
+  const kind = String(fd.get("kind") ?? "");
+  const title = cleanTitle(fd.get("title"));
+  const seg = String(fd.get("segment_id") ?? "");
+  const position = Number(String(fd.get("position") ?? "0"));
+  if (!isUuid(roundId)) flash(back, "erro", "Rodada inválida.");
+  if (!isBlockKind(kind)) flash(back, "erro", "Tipo inválido.");
+  if (!title) flash(back, "erro", "Dê um título à tela.");
+  if (seg !== "" && !isUuid(seg)) flash(back, "erro", "Segmento inválido.");
+  if (!Number.isInteger(position) || position < -1000 || position > 100000) flash(back, "erro", "A posição deve ser um número inteiro.");
+  let json: unknown;
+  try { json = JSON.parse(String(fd.get("body") ?? "")); } catch { flash(back, "erro", `"${title}": o conteúdo não é um JSON válido.`); }
+  const parsed = parseBody(kind as BlockKind, json);
+  if (!parsed.ok) flash(back, "erro", `"${title}": ${parsed.error}`);
+  const row = {
+    round_id: roundId, segment_id: seg === "" ? null : seg, position, kind, title, subtitle: cleanShort(fd.get("subtitle"), 300),
+    body: parsed.ok ? parsed.body : {}, source: cleanShort(fd.get("source"), 800), note: cleanShort(fd.get("note"), 1200),
+  };
+  const res = id === "" ? await supabase.from("round_context_blocks").insert(row) : await supabase.from("round_context_blocks").update(row).eq("id", id);
+  if (res.error) flash(back, "erro", res.error.message);
+  revalidatePath(back);
+  flash(back, "ok", id === "" ? `"${title}" criada.` : `"${title}" salva.`);
+}
+
+export async function deleteContextBlock(fd: FormData) {
+  const back = "/admin/rodadas/contexto";
+  const { supabase } = await requireProfile("admin");
+  const id = String(fd.get("id") ?? "");
+  if (!isUuid(id)) flash(back, "erro", "Tela inválida.");
+  const { error } = await supabase.from("round_context_blocks").delete().eq("id", id);
+  if (error) flash(back, "erro", error.message);
+  revalidatePath(back);
+  flash(back, "ok", "Tela removida.");
 }

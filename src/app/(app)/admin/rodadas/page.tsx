@@ -36,7 +36,7 @@ export default async function RodadasAdminPage({ searchParams }: { searchParams:
   return (
     <div>
       <Flash ok={sp.ok} erro={sp.erro} />
-      <PageHeader title="Rodadas da reunião" subtitle="A dinâmica de consolidação roda em grupos de BUs: em cada rodada o líder de cada segmento decide o Foco, lapida o pitch e valida os pontos dos regionais." />
+      <PageHeader title="Rodadas da reunião" subtitle="A dinâmica de consolidação roda em grupos de BUs: em cada rodada o líder de cada segmento decide o Foco, lapida o pitch e valida os pontos dos regionais." actions={<Link href="/admin/rodadas/contexto" className="btn"><Icon name="edit" size={18} />Telas de contexto</Link>} />
 
       <section className="mb-8">
         <h2 className="mb-2">Andamento por segmento</h2>
