@@ -77,6 +77,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0011_segment_consolidation.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0012_segment_pitches.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0013_meeting_mode.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0014_meeting_rounds.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1257,5 +1258,109 @@ describe("Diretoria cria o destaque (Manter / Mudar / Treinar) em nome do direto
     expect(await as(ID.diretor3, "update mmt_records set headline='tarde' where id=$1 returning 1", [r[0].id])).toHaveLength(0);
     await sup("delete from mmt_records where id=$1", [r[0].id]);
     await sup("delete from mmt_submissions where user_id=$1", [ID.diretor3]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Rodadas da reunião: Foco por grupo de BUs e plano de ação            */
+/* ------------------------------------------------------------------ */
+describe("rodadas da reunião: Foco por grupo de BUs, validação do pitch e plano de ação dos regionais", () => {
+  // Sul (ID.diretor) lidera Saúde · SP (ID.diretor2) lidera Varejo · Norte (ID.diretor3) não lidera
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  const round: Record<number, string> = {};
+  const lbl: string[] = [];
+  let cyb = "", prt = "";
+  const recs: Record<string, string> = {};
+
+  it("a migração cria as 4 rodadas e a BU de cada oferta define a rodada dela", async () => {
+    expect((await sup("select 1 from meeting_rounds"))).toHaveLength(4);
+    for (const r of await sup<{ id: string; position: number }>("select id, position from meeting_rounds")) round[r.position] = r.id;
+    await sup("delete from segment_leaders where segment_id in ($1,$2)", [saude(), varejo()]);
+    await sup("insert into segment_leaders values ($1,$2),($3,$4)", [saude(), ID.diretor, varejo(), ID.diretor2]);
+    await sup("update segment_strategies set status='draft', finalized_at=null where segment_id in ($1,$2)", [saude(), varejo()]);
+    await sup("insert into meeting_round_bus (bu_id, round_id) values ($1,$2),($3,$4)", [buId.LBL, round[1], buId.CYB, round[2]]);
+    for (let i = 1; i <= 7; i++) lbl.push((await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,$2) returning id", [buId.LBL, `Rodada ${i}`]))[0].id);
+    cyb = (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Rodada CYB') returning id", [buId.CYB]))[0].id;
+    prt = (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Sem rodada') returning id", [buId.PRT]))[0].id;
+    expect(await sup("select round_of_offer($1) as r", [lbl[0]])).toEqual([{ r: round[1] }]);
+    expect(await sup("select round_of_offer($1) as r", [prt])).toEqual([{ r: null }]);
+  });
+
+  it("o limite de Foco vale por rodada (5 em cada), a rodada vem da BU da oferta e a oferta sem rodada é recusada", async () => {
+    for (let i = 0; i < 5; i++) await as(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'foco')", [saude(), lbl[i], round[4]]); // round_id enviado errado é corrigido
+    expect(await as(ID.diretor, "select round_id from round_priorities where offer_id=$1", [lbl[0]])).toEqual([{ round_id: round[1] }]);
+    await expect(as(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'foco')", [saude(), lbl[5], round[1]])).rejects.toThrow(/Limite de ofertas em Foco desta rodada/);
+    await as(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'apoio')", [saude(), lbl[5], round[1]]);
+    await expect(as(ID.diretor, "update round_priorities set level='foco' where segment_id=$1 and offer_id=$2", [saude(), lbl[5]])).rejects.toThrow(/Limite/);
+    // outra rodada tem o seu próprio limite
+    await as(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'foco')", [saude(), cyb, round[2]]);
+    // outro segmento também
+    await as(ID.diretor2, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'foco')", [varejo(), lbl[0], round[1]]);
+    await expect(as(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'foco')", [saude(), prt, round[1]])).rejects.toThrow(/não pertence a nenhuma rodada/);
+    // segmento e oferta não mudam depois de criados
+    await fails(ID.diretor, "update round_priorities set offer_id=$1 where segment_id=$2 and offer_id=$3", [lbl[6], saude(), lbl[0]]);
+    await fails(ID.diretor, "insert into round_priorities (segment_id,offer_id,round_id,level) values ($1,$2,$3,'urgente')", [saude(), lbl[6], round[1]]);
+  });
+
+  it("a Diretoria muda o limite da rodada; o líder não; as prioridades da consolidação anterior continuam intactas", async () => {
+    expect(await as(ID.diretor, "update meeting_rounds set foco_limit=50 where id=$1 returning 1", [round[1]])).toHaveLength(0);
+    expect(await as(ID.admin, "update meeting_rounds set foco_limit=6 where id=$1 returning 1", [round[1]])).toHaveLength(1);
+    await as(ID.diretor, "update round_priorities set level='foco' where segment_id=$1 and offer_id=$2", [saude(), lbl[5]]);
+    await as(ID.admin, "update meeting_rounds set foco_limit=5 where id=$1", [round[1]]);
+    await as(ID.diretor, "update round_priorities set level='apoio' where segment_id=$1 and offer_id=$2", [saude(), lbl[5]]);
+    expect(await sup("select 1 from segment_priorities where offer_id = any($1)", [lbl])).toHaveLength(0);
+    // o líder e a Diretoria leem os grupos; head e quem não lidera nada, não
+    expect((await as(ID.diretor, "select 1 from meeting_rounds")).length).toBe(4);
+    expect(await as(ID.diretor3, "select 1 from meeting_rounds")).toHaveLength(0);
+    expect(await as(ID.headPRT, "select 1 from meeting_round_bus")).toHaveLength(0);
+    expect(await as(ID.diretor, "insert into meeting_round_bus (bu_id,round_id) values ($1,$2) returning 1", [buId.DAT, round[3]]).catch(() => "negado")).toBe("negado");
+    expect(await as(ID.admin, "insert into meeting_round_bus (bu_id,round_id) values ($1,$2) returning 1", [buId.DAT, round[3]])).toHaveLength(1);
+  });
+
+  it("só o líder do segmento (e a Diretoria) decide, valida o pitch e anota a rodada", async () => {
+    expect(await as(ID.diretor, "update round_priorities set pitch_validated=true, note='valida' where segment_id=$1 and offer_id=$2 returning 1", [saude(), lbl[0]])).toHaveLength(1);
+    expect(await as(ID.diretor2, "update round_priorities set pitch_validated=true where segment_id=$1 and offer_id=$2 returning 1", [saude(), lbl[0]])).toHaveLength(0);
+    expect(await as(ID.diretor3, "select 1 from round_priorities")).toHaveLength(0);
+    expect(await as(ID.diretor2, "select 1 from round_priorities where segment_id=$1", [saude()])).toHaveLength(0);
+    expect(await as(ID.admin, "select 1 from round_priorities")).not.toHaveLength(0);
+    await as(ID.diretor, "insert into round_notes (segment_id,round_id,notes) values ($1,$2,'decidimos X')", [saude(), round[1]]);
+    expect(await as(ID.diretor, "update round_notes set notes='decidimos Y' where segment_id=$1 and round_id=$2 returning 1", [saude(), round[1]])).toHaveLength(1);
+    await fails(ID.diretor2, "insert into round_notes (segment_id,round_id,notes) values ($1,$2,'invasor')", [saude(), round[1]]);
+    expect(await as(ID.diretor3, "select 1 from round_notes")).toHaveLength(0);
+  });
+
+  it("plano de ação: o líder valida os pontos regionais do segmento dele, com responsável e prazo, e só os dele", async () => {
+    const mk = async (key: string, seg: string, bu: string, type: string) => {
+      recs[key] = (await sup<{ id: string }>("insert into mmt_records (author_id,type,segment_id,bu_id,regional,headline,action) values ($1,$2,$3,$4,'Sul','Ponto','Ação') returning id", [ID.diretor, type, seg, bu]))[0].id;
+    };
+    await mk("saudeLbl", saude(), buId.LBL, "manter");
+    await mk("saudeCyb", saude(), buId.CYB, "treinar");
+    await mk("varejoLbl", varejo(), buId.LBL, "mudar");
+    expect(await as(ID.diretor, "select 1 from mmt_records where id=$1", [recs.saudeLbl])).toHaveLength(1);
+    await as(ID.diretor, "insert into mmt_action_plan (record_id,segment_id,decision,owner,due_date,note) values ($1,$2,'validado','Ana (Head LBL)','2027-01-31','ok')", [recs.saudeLbl, varejo()]); // segment_id enviado errado é corrigido
+    expect(await as(ID.diretor, "select segment_id, decision, owner, due_date::text as due from mmt_action_plan where record_id=$1", [recs.saudeLbl])).toEqual([{ segment_id: saude(), decision: "validado", owner: "Ana (Head LBL)", due: "2027-01-31" }]);
+    expect(await as(ID.diretor, "update mmt_action_plan set decision='ajustar', note='mudar o prazo' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);
+    await fails(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'talvez')", [recs.saudeCyb]);       // decisão inválida
+    await fails(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.varejoLbl]);    // registro de outro segmento
+    await fails(ID.diretor2, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.saudeCyb]);    // líder de outro segmento
+    await fails(ID.diretor3, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.saudeCyb]);
+    await as(ID.diretor2, "insert into mmt_action_plan (record_id,decision) values ($1,'descartado')", [recs.varejoLbl]);
+    expect(await as(ID.diretor, "select 1 from mmt_action_plan")).toHaveLength(1);
+    expect(await as(ID.diretor3, "select 1 from mmt_action_plan")).toHaveLength(0);
+    expect(await as(ID.headLBL, "select 1 from mmt_action_plan")).toHaveLength(0);
+    expect(await as(ID.admin, "select 1 from mmt_action_plan")).toHaveLength(2);
+    expect(await as(ID.diretor, "delete from mmt_action_plan where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);   // volta a pendente
+  });
+
+  it("depois da versão final nada da rodada muda; a Diretoria reabre", async () => {
+    await as(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.saudeLbl]);
+    await as(ID.diretor, "select finalize_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update round_priorities set note='tarde' where segment_id=$1 and offer_id=$2 returning 1", [saude(), lbl[0]])).toHaveLength(0);
+    expect(await as(ID.diretor, "update round_notes set notes='tarde' where segment_id=$1 returning 1", [saude()])).toHaveLength(0);
+    expect(await as(ID.diretor, "update mmt_action_plan set note='tarde' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(0);
+    await fails(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'ajustar')", [recs.saudeCyb]);
+    await as(ID.admin, "select reopen_segment($1)", [saude()]);
+    expect(await as(ID.diretor, "update mmt_action_plan set note='de novo' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);
   });
 });

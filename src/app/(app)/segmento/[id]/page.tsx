@@ -99,8 +99,12 @@ export default async function SegmentoPage({ params, searchParams }: { params: P
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Link href={`/segmento/${id}/rodadas`} className="btn btn-primary"><Icon name="target" size={18} />Rodadas da reunião</Link>
+        <span className="text-sm text-(--ink-3)">A dinâmica por grupo de BUs: Foco de cada rodada, pitch e plano de ação.</span>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Link href={`/reuniao/${id}`} className="btn"><Icon name="monitoring" size={18} />Modo reunião (projetar)</Link>
-        <span className="text-sm text-(--ink-3)">Tela cheia para a reunião: estratégia, ofertas em Foco e fechamento.</span>
+        <span className="text-sm text-(--ink-3)">Tela cheia com o rascunho do segmento: estratégia, ofertas em Foco e fechamento.</span>
       </div>
 
       {counts.foco + counts.apoio > 0 && (

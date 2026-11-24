@@ -32,7 +32,7 @@ export function buildSlides(rows: DeckRowLite[], opts: { hasRegional: boolean })
 }
 
 /** Posição da tela atual depois de a lista mudar: a mesma tela, ou a mesa de decisão se ela saiu (oferta tirada do Foco). */
-export function indexOfKey(slides: Slide[], key: string): number {
+export function indexOfKey(slides: { key: string }[], key: string): number {
   const i = slides.findIndex((s) => s.key === key);
   if (i >= 0) return i;
   const mesa = slides.findIndex((s) => s.key === "mesa");

@@ -1,0 +1,143 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { flash } from "@/lib/flash";
+import { requireProfile } from "@/lib/session";
+import { cleanNote, cleanText, isLevel, type Level } from "@/lib/segment";
+import { cleanActionNote, cleanContext, cleanDueDate, cleanLimit, cleanOwner, isDecision, planDraftCopy, type Decision } from "@/lib/rounds";
+import type { SaveResult } from "@/app/actions/bu";
+
+const BLOCKED = "Edição bloqueada: a versão final está travada ou você não lidera este segmento.";
+const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
+const friendly = (e: { code?: string; message: string }) =>
+  e.code === "42501" || /row-level security/i.test(e.message) ? BLOCKED : e.message;
+const done = (): SaveResult => ({ ok: true, savedAt: new Date().toISOString() });
+
+/** Define (ou limpa, com level = null) o nível de uma oferta na rodada. O limite de Foco da rodada é do banco. */
+export async function setRoundPriority(segmentId: string, offerId: string, level: Level | null, note?: string | null): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
+  if (level === null) {
+    const { error } = await supabase.from("round_priorities").delete().eq("segment_id", segmentId).eq("offer_id", offerId);
+    if (error) return { ok: false, error: friendly(error) };
+    return done();
+  }
+  if (!isLevel(level)) return { ok: false, error: "Nível inválido." };
+  const row: Record<string, unknown> = { segment_id: segmentId, offer_id: offerId, level };
+  if (note !== undefined) row.note = cleanNote(note);
+  const { data, error } = await supabase.from("round_priorities").upsert(row, { onConflict: "segment_id,offer_id" }).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+/** Justificativa curta de uma oferta que já tem nível na rodada. */
+export async function setRoundPriorityNote(segmentId: string, offerId: string, note: string): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("round_priorities").update({ note: cleanNote(note) }).eq("segment_id", segmentId).eq("offer_id", offerId).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: "Defina primeiro o nível da oferta (ou a versão final está travada)." };
+  return done();
+}
+
+/** Marca (ou desmarca) o pitch como conferido com os números de mercado. */
+export async function setPitchValidated(segmentId: string, offerId: string, validated: boolean): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("round_priorities").update({ pitch_validated: validated === true }).eq("segment_id", segmentId).eq("offer_id", offerId).select("offer_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+/**
+ * Decisão sobre um ponto dos regionais (plano de ação). Sem decisão (null) o ponto volta a pendente
+ * e responsável, prazo e observação são descartados.
+ */
+export async function saveActionItem(recordId: string, v: { decision: Decision | null; owner: string; due: string; note: string }): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(recordId)) return { ok: false, error: "Dados inválidos." };
+  if (v.decision === null) {
+    const { error } = await supabase.from("mmt_action_plan").delete().eq("record_id", recordId);
+    if (error) return { ok: false, error: friendly(error) };
+    return done();
+  }
+  if (!isDecision(v.decision)) return { ok: false, error: "Decisão inválida." };
+  const due = (v.due ?? "").trim() === "" ? null : cleanDueDate(v.due);
+  if ((v.due ?? "").trim() !== "" && due === null) return { ok: false, error: "Prazo inválido." };
+  const row = { record_id: recordId, decision: v.decision, owner: cleanOwner(v.owner), due_date: due, note: cleanActionNote(v.note) };
+  const { data, error } = await supabase.from("mmt_action_plan").upsert(row, { onConflict: "record_id" }).select("record_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+/** Anotações da rodada do segmento. */
+export async function saveRoundNotes(segmentId: string, roundId: string, notes: string): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(roundId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("round_notes").upsert({ segment_id: segmentId, round_id: roundId, notes: cleanText(notes) }, { onConflict: "segment_id,round_id" }).select("segment_id");
+  if (error) return { ok: false, error: friendly(error) };
+  if (!data?.length) return { ok: false, error: BLOCKED };
+  return done();
+}
+
+/** Parte do rascunho que o líder já tinha: copia o nível das ofertas da rodada que ainda não têm decisão. */
+export async function copyLeaderDraft(fd: FormData) {
+  const segmentId = String(fd.get("segment_id")), roundId = String(fd.get("round_id"));
+  const back = `/reuniao/${segmentId}/rodada/${roundId}`;
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId) || !isUuid(roundId)) flash("/segmento", "erro", "Dados inválidos.");
+  const [round, buRows, draft, cur] = await Promise.all([
+    supabase.from("meeting_rounds").select("foco_limit").eq("id", roundId).maybeSingle(),
+    supabase.from("meeting_round_bus").select("bu_id").eq("round_id", roundId),
+    supabase.from("segment_priorities").select("offer_id,level").eq("segment_id", segmentId),
+    supabase.from("round_priorities").select("offer_id,level").eq("segment_id", segmentId).eq("round_id", roundId),
+  ]);
+  if (!round.data) flash(back, "erro", "Rodada não encontrada.");
+  const buIds = (buRows.data ?? []).map((b) => b.bu_id as string);
+  const { data: offers } = buIds.length ? await supabase.from("offers").select("id").in("bu_id", buIds) : { data: [] };
+  const inRound = new Set((offers ?? []).map((o) => o.id as string));
+  const plan = planDraftCopy(
+    new Map((draft.data ?? []).map((r) => [r.offer_id as string, r.level as Level])),
+    new Map((cur.data ?? []).map((r) => [r.offer_id as string, r.level as Level])),
+    inRound, (round.data?.foco_limit as number | undefined) ?? 5,
+  );
+  if (plan.length === 0) flash(back, "ok", "Não há nada a copiar: o rascunho do líder não tem ofertas novas nesta rodada.");
+  const { error } = await supabase.from("round_priorities").upsert(plan.map((p) => ({ segment_id: segmentId, offer_id: p.offerId, level: p.level })), { onConflict: "segment_id,offer_id" });
+  if (error) flash(back, "erro", friendly(error));
+  revalidatePath(back);
+  flash(back, "ok", `${plan.length} ${plan.length === 1 ? "oferta copiada" : "ofertas copiadas"} do rascunho. Ajuste o que quiser.`);
+}
+
+/** Diretoria: nome, contexto e limite de cada rodada, e a rodada de cada BU. */
+export async function saveRounds(fd: FormData) {
+  const back = "/admin/rodadas";
+  const { supabase } = await requireProfile("admin");
+  const rounds = await supabase.from("meeting_rounds").select("id,name");
+  const bus = await supabase.from("bus").select("id");
+  const ids = new Set((rounds.data ?? []).map((r) => r.id as string));
+  for (const r of rounds.data ?? []) {
+    const id = r.id as string;
+    const name = String(fd.get(`name_${id}`) ?? "").trim().slice(0, 80);
+    const limit = cleanLimit(fd.get(`limit_${id}`));
+    if (!name) flash(back, "erro", "Toda rodada precisa de um nome.");
+    if (limit === null) flash(back, "erro", `O limite de Foco de "${name}" deve ser um número de 1 a 50.`);
+    const { error } = await supabase.from("meeting_rounds").update({ name, foco_limit: limit, context: cleanContext(fd.get(`context_${id}`)), updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) flash(back, "erro", error.message);
+  }
+  for (const b of bus.data ?? []) {
+    const buId = b.id as string;
+    const to = String(fd.get(`bu_${buId}`) ?? "");
+    if (to === "" || !ids.has(to)) {
+      const { error } = await supabase.from("meeting_round_bus").delete().eq("bu_id", buId);
+      if (error) flash(back, "erro", error.message);
+    } else {
+      const { error } = await supabase.from("meeting_round_bus").upsert({ bu_id: buId, round_id: to }, { onConflict: "bu_id" });
+      if (error) flash(back, "erro", error.message);
+    }
+  }
+  revalidatePath(back);
+  flash(back, "ok", "Rodadas salvas.");
+}
