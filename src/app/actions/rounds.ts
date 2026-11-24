@@ -12,6 +12,9 @@ const BLOCKED = "Edição bloqueada: a versão final está travada ou você não
 const isUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v);
 const friendly = (e: { code?: string; message: string }) =>
   e.code === "42501" || /row-level security/i.test(e.message) ? BLOCKED : e.message;
+/** O plano de ação não trava com a versão final: o único motivo de recusa é não liderar o segmento. */
+const PLAN_BLOCKED = "Sem permissão: só o líder do segmento e a Diretoria mexem no plano de ação.";
+const planFriendly = (e: { code?: string; message: string }) => (e.code === "42501" || /row-level security/i.test(e.message) ? PLAN_BLOCKED : e.message);
 const done = (): SaveResult => ({ ok: true, savedAt: new Date().toISOString() });
 
 /** Define (ou limpa, com level = null) o nível de uma oferta na rodada. O limite de Foco da rodada é do banco. */
@@ -61,7 +64,7 @@ export async function saveActionItem(recordId: string, v: { decision: Decision |
   if (!isUuid(recordId)) return { ok: false, error: "Dados inválidos." };
   if (v.decision === null) {
     const { error } = await supabase.from("mmt_action_plan").delete().eq("record_id", recordId);
-    if (error) return { ok: false, error: friendly(error) };
+    if (error) return { ok: false, error: planFriendly(error) };
     return done();
   }
   if (!isDecision(v.decision)) return { ok: false, error: "Decisão inválida." };
@@ -69,8 +72,8 @@ export async function saveActionItem(recordId: string, v: { decision: Decision |
   if ((v.due ?? "").trim() !== "" && due === null) return { ok: false, error: "Prazo inválido." };
   const row = { record_id: recordId, decision: v.decision, owner: cleanOwner(v.owner), due_date: due, note: cleanActionNote(v.note) };
   const { data, error } = await supabase.from("mmt_action_plan").upsert(row, { onConflict: "record_id" }).select("record_id");
-  if (error) return { ok: false, error: friendly(error) };
-  if (!data?.length) return { ok: false, error: BLOCKED };
+  if (error) return { ok: false, error: planFriendly(error) };
+  if (!data?.length) return { ok: false, error: PLAN_BLOCKED };
   return done();
 }
 
@@ -93,7 +96,7 @@ export async function createActionItem(segmentId: string, roundId: string, v: It
   const r = itemRow(v);
   if (!r.ok) return r;
   const { data, error } = await supabase.from("round_action_items").insert({ segment_id: segmentId, round_id: roundId, ...r.row }).select("id,type,bu_id,headline,action,owner,due_date,note").single();
-  if (error) return { ok: false, error: friendly(error) };
+  if (error) return { ok: false, error: planFriendly(error) };
   return { ok: true, item: data as RoundActionItemRow };
 }
 
@@ -104,8 +107,8 @@ export async function updateActionItem(id: string, v: ItemInput): Promise<SaveRe
   const r = itemRow(v);
   if (!r.ok) return r;
   const { data, error } = await supabase.from("round_action_items").update(r.row).eq("id", id).select("id");
-  if (error) return { ok: false, error: friendly(error) };
-  if (!data?.length) return { ok: false, error: BLOCKED };
+  if (error) return { ok: false, error: planFriendly(error) };
+  if (!data?.length) return { ok: false, error: PLAN_BLOCKED };
   return done();
 }
 
@@ -114,8 +117,8 @@ export async function deleteActionItem(id: string): Promise<SaveResult> {
   const { supabase } = await requireProfile();
   if (!isUuid(id)) return { ok: false, error: "Dados inválidos." };
   const { data, error } = await supabase.from("round_action_items").delete().eq("id", id).select("id");
-  if (error) return { ok: false, error: friendly(error) };
-  if (!data?.length) return { ok: false, error: BLOCKED };
+  if (error) return { ok: false, error: planFriendly(error) };
+  if (!data?.length) return { ok: false, error: PLAN_BLOCKED };
   return done();
 }
 

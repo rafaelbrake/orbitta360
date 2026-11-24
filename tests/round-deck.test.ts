@@ -67,11 +67,28 @@ describe("rodada da reunião: cada tela renderiza com o conteúdo certo", () => 
     expect(html).toContain('value="Ana"');
     expect(html).toContain('value="2027-02-01"');
   });
-  it("o botão de incluir item e o de remover só aparecem para quem pode editar", () => {
-    const ro = render({ initialKey: "plano", canEdit: false, final: true });
+  it("com a versão final travada, o plano de ação continua editável para o líder e a Diretoria", () => {
+    const html = render({ initialKey: "plano", canEdit: false, canEditPlan: true, final: true });
+    expect(html).toContain("Versão final");
+    expect(html).toContain("Incluir item");
+    expect(html).toContain("Remover item");
+    expect(html).toContain("O plano de ação segue aberto mesmo com a versão final travada.");
+    expect(html).not.toMatch(/aria-label="Decisão sobre o ponto"[^>]*disabled/);
+  });
+  it("quem não pode editar o plano só lê: sem incluir, sem remover e com os campos desabilitados", () => {
+    const ro = render({ initialKey: "plano", canEdit: false, canEditPlan: false, final: true });
     expect(ro).not.toContain("Incluir item");
     expect(ro).not.toContain("Remover item");
     expect(ro).toContain("Rever a tabela de preços");
+    expect(ro).toMatch(/<select[^>]*aria-label="Decisão sobre o ponto"[^>]*disabled|<select[^>]*disabled[^>]*aria-label="Decisão sobre o ponto"/);
+  });
+  it("sem canEditPlan informado, o plano segue a permissão geral (compatível com o que havia)", () => {
+    expect(render({ initialKey: "plano", canEdit: false, final: true })).not.toContain("Incluir item");
+    expect(render({ initialKey: "plano", canEdit: true })).toContain("Incluir item");
+  });
+  it("com a versão final travada, o Foco continua em leitura mesmo com o plano editável", () => {
+    const html = render({ initialKey: "mesa", canEdit: false, canEditPlan: true, final: true });
+    expect(html).toMatch(/<select[^>]*disabled/);
   });
   it("sem nenhum ponto, o plano mostra como incluir um item novo", () => {
     expect(render({ initialKey: "plano", items: [] })).toContain("inclua um item novo");

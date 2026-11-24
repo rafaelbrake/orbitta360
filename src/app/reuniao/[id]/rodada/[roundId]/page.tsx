@@ -85,7 +85,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
 
   return (
     <RoundDeck
-      segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final}
+      segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final} canEditPlan={isAdmin || isLeader}
       round={{ id: round.id, position: round.position, name: round.name, context: round.context, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
       blocks={orderBlocks(((ctxR.data ?? []) as BlockRow[]).map(toBlock).filter((b): b is NonNullable<typeof b> => b !== null))}

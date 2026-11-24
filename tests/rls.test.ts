@@ -80,6 +80,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0014_meeting_rounds.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0015_round_action_items.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0016_round_context.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0017_plan_always_editable.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1355,15 +1356,20 @@ describe("rodadas da reunião: Foco por grupo de BUs, validação do pitch e pla
     expect(await as(ID.diretor, "delete from mmt_action_plan where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);   // volta a pendente
   });
 
-  it("depois da versão final nada da rodada muda; a Diretoria reabre", async () => {
+  it("depois da versão final o Foco e as anotações da rodada não mudam, mas o plano de ação segue editável; a Diretoria reabre", async () => {
     await as(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.saudeLbl]);
     await as(ID.diretor, "select finalize_segment($1)", [saude()]);
     expect(await as(ID.diretor, "update round_priorities set note='tarde' where segment_id=$1 and offer_id=$2 returning 1", [saude(), lbl[0]])).toHaveLength(0);
     expect(await as(ID.diretor, "update round_notes set notes='tarde' where segment_id=$1 returning 1", [saude()])).toHaveLength(0);
-    expect(await as(ID.diretor, "update mmt_action_plan set note='tarde' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(0);
-    await fails(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'ajustar')", [recs.saudeCyb]);
+    // o plano de ação não trava: decidir de novo e decidir um ponto que ainda estava pendente
+    expect(await as(ID.diretor, "update mmt_action_plan set note='com a versão final' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);
+    await as(ID.diretor, "insert into mmt_action_plan (record_id,decision) values ($1,'ajustar')", [recs.saudeCyb]);
+    // e continua restrito ao líder do segmento e à Diretoria
+    await fails(ID.diretor2, "insert into mmt_action_plan (record_id,decision) values ($1,'validado')", [recs.saudeLbl]);
+    expect(await as(ID.diretor2, "update mmt_action_plan set note='invasor' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(0);
+    expect(await as(ID.diretor3, "select 1 from mmt_action_plan where segment_id=$1", [saude()])).toHaveLength(0);
     await as(ID.admin, "select reopen_segment($1)", [saude()]);
-    expect(await as(ID.diretor, "update mmt_action_plan set note='de novo' where record_id=$1 returning 1", [recs.saudeLbl])).toHaveLength(1);
+    expect(await as(ID.diretor, "update round_priorities set note='de novo' where segment_id=$1 and offer_id=$2 returning 1", [saude(), lbl[0]])).toHaveLength(1);
   });
 });
 
@@ -1399,13 +1405,15 @@ describe("itens novos no plano de ação da rodada", () => {
     expect(await as(ID.admin, "select 1 from round_action_items")).toHaveLength(1);
   });
 
-  it("depois da versão final nada muda; a Diretoria reabre", async () => {
+  it("a versão final não trava os itens: o líder inclui, edita e remove; quem não lidera continua de fora", async () => {
     await as(ID.diretor, "select finalize_segment($1)", [saude()]);
-    await fails(ID.diretor, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'tarde')", [saude(), round1]);
-    expect(await as(ID.diretor, "update round_action_items set owner='tarde' where id=$1 returning 1", [item])).toHaveLength(0);
-    expect(await as(ID.diretor, "delete from round_action_items where id=$1 returning 1", [item])).toHaveLength(0);
+    const novo = (await as<{ id: string }>(ID.diretor, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'Incluído com a versão final') returning id", [saude(), round1]))[0].id;
+    expect(await as(ID.diretor, "update round_action_items set owner='depois da final' where id=$1 returning 1", [item])).toHaveLength(1);
+    expect(await as(ID.diretor, "delete from round_action_items where id=$1 returning 1", [novo])).toHaveLength(1);
+    await fails(ID.diretor2, "insert into round_action_items (segment_id,round_id,headline) values ($1,$2,'invasor')", [saude(), round1]);
+    expect(await as(ID.diretor2, "update round_action_items set owner='x' where id=$1 returning 1", [item])).toHaveLength(0);
+    expect(await as(ID.admin, "update round_action_items set owner='Diretoria' where id=$1 returning 1", [item])).toHaveLength(1);
     await as(ID.admin, "select reopen_segment($1)", [saude()]);
-    expect(await as(ID.diretor, "update round_action_items set owner='de novo' where id=$1 returning 1", [item])).toHaveLength(1);
   });
 });
 

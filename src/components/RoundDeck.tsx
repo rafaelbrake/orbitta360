@@ -17,6 +17,8 @@ import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/segment";
 
 export interface RoundDeckProps {
   segmentId: string; segmentName: string; leader: string | null; final: boolean; canEdit: boolean;
+  /** o plano de ação não trava com a versão final: quem pode decidir e incluir itens (por padrão, igual a canEdit) */
+  canEditPlan?: boolean;
   round: { id: string; position: number; name: string; context: string | null; focoLimit: number; buCodes: string[]; buOptions: { id: string; code: string }[] };
   roundCount: number; prevRoundId: string | null; nextRoundId: string | null;
   rows: RoundRow[]; items: ActionItem[]; regional: { regional: string; works: string | null; not_works: string | null }[];
@@ -125,6 +127,7 @@ export function RoundDeck(p: RoundDeckProps) {
   const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0, blocks: (p.blocks ?? []).map((b) => ({ id: b.id, title: b.title })) }), [rows, p.round.context, p.regional.length, p.blocks]);
   const index = clampIndex(indexOfKey(slides, key), slides.length);
   const slide = slides[index];
+  const canPlan = p.canEditPlan ?? p.canEdit;
   const stats = roundStats(rows, items);
   const limit = p.round.focoLimit;
 
@@ -377,9 +380,9 @@ export function RoundDeck(p: RoundDeckProps) {
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <h2 className="text-5xl text-(--forest)">Plano de ação</h2>
               <span className="badge !text-base bg-(--brand-50) text-(--ink-2)">{stats.acoesDecididas} de {stats.acoesTotal} com decisão</span>
-              {p.canEdit && <button type="button" className="btn btn-primary ml-auto" onClick={() => setAdding((v) => !v)}><Icon name={adding ? "close" : "add"} size={18} />{adding ? "Cancelar" : "Incluir item"}</button>}
+              {canPlan && <button type="button" className="btn btn-primary ml-auto" onClick={() => setAdding((v) => !v)}><Icon name={adding ? "close" : "add"} size={18} />{adding ? "Cancelar" : "Incluir item"}</button>}
             </div>
-            <p className="mb-3 text-xl text-(--ink-2)">O que os diretores regionais pediram sobre as BUs desta rodada. Valide, ajuste ou descarte, e diga quem faz e até quando. O que surgir na sala entra como item novo.</p>
+            <p className="mb-3 text-xl text-(--ink-2)">O que os diretores regionais pediram sobre as BUs desta rodada. Valide, ajuste ou descarte, e diga quem faz e até quando. O que surgir na sala entra como item novo.{p.final && canPlan && <b className="text-(--brand-800)"> O plano de ação segue aberto mesmo com a versão final travada.</b>}</p>
             {adding && (
               <form className="mb-4 space-y-3 rounded-2xl border border-(--brand) bg-(--brand-50) p-4" onSubmit={(e) => { e.preventDefault(); void addItem(); }}>
                 <div className="grid gap-3 md:grid-cols-[1fr_11rem_11rem]">
@@ -414,27 +417,27 @@ export function RoundDeck(p: RoundDeckProps) {
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="badge !text-base bg-(--brand) text-white">Item novo</span>
-                      <select aria-label="Tipo do item" disabled={!p.canEdit} className="input !min-h-9 !w-36" value={i.type} onChange={(e) => void commitCustom(i, { type: e.target.value })}>
+                      <select aria-label="Tipo do item" disabled={!canPlan} className="input !min-h-9 !w-36" value={i.type} onChange={(e) => void commitCustom(i, { type: e.target.value })}>
                         <option value="">Sem tipo</option>{Object.entries(TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                       </select>
-                      <select aria-label="BU do item" disabled={!p.canEdit} className="input !min-h-9 !w-36" value={buIdOf(i.buCode)} onChange={(e) => void commitCustom(i, { buCode: p.round.buOptions.find((b) => b.id === e.target.value)?.code ?? "" })}>
+                      <select aria-label="BU do item" disabled={!canPlan} className="input !min-h-9 !w-36" value={buIdOf(i.buCode)} onChange={(e) => void commitCustom(i, { buCode: p.round.buOptions.find((b) => b.id === e.target.value)?.code ?? "" })}>
                         <option value="">Qualquer BU</option>{p.round.buOptions.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}
                       </select>
                     </div>
-                    <input aria-label="O item" className="input !text-lg font-semibold" maxLength={300} disabled={!p.canEdit} value={i.headline ?? ""}
+                    <input aria-label="O item" className="input !text-lg font-semibold" maxLength={300} disabled={!canPlan} value={i.headline ?? ""}
                       onChange={(e) => editItem(i, { headline: e.target.value })} onBlur={() => { if ((i.headline ?? "").trim()) void commitCustom(i, {}); }} />
-                    <input aria-label="Como fazer" className="input" maxLength={500} disabled={!p.canEdit} placeholder="Como fazer" value={i.action ?? ""}
+                    <input aria-label="Como fazer" className="input" maxLength={500} disabled={!canPlan} placeholder="Como fazer" value={i.action ?? ""}
                       onChange={(e) => editItem(i, { action: e.target.value })} onBlur={() => void commitCustom(i, {})} />
                   </div>
                   <div className="space-y-2">
                     <div className="grid grid-cols-[1fr_9.5rem] gap-2">
-                      <input aria-label="Responsável" className="input" maxLength={120} placeholder="Responsável" disabled={!p.canEdit} value={i.owner}
+                      <input aria-label="Responsável" className="input" maxLength={120} placeholder="Responsável" disabled={!canPlan} value={i.owner}
                         onChange={(e) => editItem(i, { owner: e.target.value })} onBlur={() => void commitCustom(i, {})} />
-                      <input aria-label="Prazo" type="date" className="input" disabled={!p.canEdit} value={i.due} onChange={(e) => void commitCustom(i, { due: e.target.value })} />
+                      <input aria-label="Prazo" type="date" className="input" disabled={!canPlan} value={i.due} onChange={(e) => void commitCustom(i, { due: e.target.value })} />
                     </div>
-                    <input aria-label="Observação" className="input" maxLength={500} placeholder="Observação" disabled={!p.canEdit} value={i.note}
+                    <input aria-label="Observação" className="input" maxLength={500} placeholder="Observação" disabled={!canPlan} value={i.note}
                       onChange={(e) => editItem(i, { note: e.target.value })} onBlur={() => void commitCustom(i, {})} />
-                    {p.canEdit && <button type="button" className="btn btn-sm" onClick={() => void removeItem(i)}><Icon name="delete" size={16} />Remover item</button>}
+                    {canPlan && <button type="button" className="btn btn-sm" onClick={() => void removeItem(i)}><Icon name="delete" size={16} />Remover item</button>}
                     {err(i.recordId)}
                   </div>
                 </div>
@@ -453,18 +456,18 @@ export function RoundDeck(p: RoundDeckProps) {
                     {i.audience && <p className="text-base text-(--ink-3)"><b>Público:</b> {i.audience}</p>}
                   </div>
                   <div className="space-y-2">
-                    <select aria-label="Decisão sobre o ponto" disabled={!p.canEdit} value={i.decision ?? ""}
+                    <select aria-label="Decisão sobre o ponto" disabled={!canPlan} value={i.decision ?? ""}
                       onChange={(e) => void commit(i, { decision: isDecision(e.target.value) ? (e.target.value as Decision) : null, ...(e.target.value ? {} : { owner: "", due: "", note: "" }) })}
                       className={`input !min-h-11 !text-lg ${i.decision ? `!border-transparent font-semibold ${DECISION_STYLE[i.decision]}` : ""}`}>
                       <option value="">Pendente</option>{DECISIONS.map((d) => <option key={d} value={d}>{DECISION_LABEL[d]}</option>)}
                     </select>
                     <div className="grid grid-cols-[1fr_9.5rem] gap-2">
-                      <input aria-label="Responsável" className="input" maxLength={120} placeholder="Responsável" disabled={!p.canEdit || !i.decision} value={i.owner}
+                      <input aria-label="Responsável" className="input" maxLength={120} placeholder="Responsável" disabled={!canPlan || !i.decision} value={i.owner}
                         onChange={(e) => editItem(i, { owner: e.target.value })} onBlur={() => { if (i.decision) void commit(i, {}); }} />
-                      <input aria-label="Prazo" type="date" className="input" disabled={!p.canEdit || !i.decision} value={i.due}
+                      <input aria-label="Prazo" type="date" className="input" disabled={!canPlan || !i.decision} value={i.due}
                         onChange={(e) => void commit(i, { due: e.target.value })} />
                     </div>
-                    <input aria-label="Observação" className="input" maxLength={500} placeholder="Observação" disabled={!p.canEdit || !i.decision} value={i.note}
+                    <input aria-label="Observação" className="input" maxLength={500} placeholder="Observação" disabled={!canPlan || !i.decision} value={i.note}
                       onChange={(e) => editItem(i, { note: e.target.value })} onBlur={() => { if (i.decision) void commit(i, {}); }} />
                     {err(i.recordId)}
                   </div>
