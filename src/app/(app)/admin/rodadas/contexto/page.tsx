@@ -7,7 +7,7 @@ import { Icon } from "@/components/Icon";
 import { SubmitButton } from "@/components/SubmitButton";
 import { BackLink, Notice, PageHeader } from "@/components/ui";
 import { loadConfig } from "@/lib/data";
-import { DIRECTORS_ENABLED } from "@/lib/features";
+import { DIRECTORS_ENABLED, ROUND_CONTEXT_ENABLED } from "@/lib/features";
 import { BLOCK_KINDS, KIND_LABEL } from "@/lib/round-context";
 import { loadRounds } from "@/lib/rounds-data";
 import { requireProfile } from "@/lib/session";
@@ -27,6 +27,7 @@ export default async function ContextoPage({ searchParams }: { searchParams: SP 
   const sp = await searchParams;
   const { supabase } = await requireProfile("admin");
   if (!DIRECTORS_ENABLED) redirect("/admin");
+  if (!ROUND_CONTEXT_ENABLED) redirect("/admin/rodadas");
   const [config, rounds, r] = await Promise.all([
     loadConfig(supabase), loadRounds(supabase),
     supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").order("position"),

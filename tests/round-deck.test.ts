@@ -58,7 +58,7 @@ describe("rodada da reunião: cada tela renderiza com o conteúdo certo", () => 
   });
   it("oferta em Foco: pitch, por que é Foco, validação com os números de mercado e regionais", () => {
     const html = render({ initialKey: "oferta:a" });
-    for (const t of ["Etiqueta eletrônica", "Ruptura de gôndola", "Etiqueta eletrônica em 30 dias", "Quanto custa uma ruptura?", "Rede Alfa", "Maior margem", "Pitch validado com os números de mercado", "Lapidar o pitch aqui", "versão do segmento", "Sul · Manter"]) expect(html).toContain(t);
+    for (const t of ["Etiqueta eletrônica", "Ruptura de gôndola", "Etiqueta eletrônica em 30 dias", "Quanto custa uma ruptura?", "Rede Alfa", "Maior margem", "Pitch validado", "Lapidar o pitch aqui", "versão do segmento", "Sul · Manter"]) expect(html).toContain(t);
     expect(html).toMatch(/type="checkbox"[^>]*checked/);
   });
   it("plano de ação: pontos dos regionais com decisão, responsável e prazo", () => {

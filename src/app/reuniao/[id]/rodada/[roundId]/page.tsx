@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { RoundDeck } from "@/components/RoundDeck";
 import { effectivePitch, type PitchData } from "@/lib/book";
 import { loadRanking } from "@/lib/consolidated";
-import { DIRECTORS_ENABLED } from "@/lib/features";
+import { DIRECTORS_ENABLED, ROUND_CONTEXT_ENABLED } from "@/lib/features";
 import { isViewFilled } from "@/lib/regional";
 import { toPitchScore, type PitchScoreRow } from "@/lib/pitch-score-hash";
 import { buildActionItems, customToItem, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow, type RoundRow } from "@/lib/rounds";
@@ -41,7 +41,9 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
     supabase.from("round_notes").select("notes").eq("segment_id", id).eq("round_id", roundId).maybeSingle(),
     supabase.from("segment_priorities").select("offer_id").eq("segment_id", id).limit(1),
     supabase.from("round_action_items").select("id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).eq("round_id", roundId).order("created_at"),
-    supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").eq("round_id", roundId).or(`segment_id.is.null,segment_id.eq.${id}`),
+    ROUND_CONTEXT_ENABLED
+      ? supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").eq("round_id", roundId).or(`segment_id.is.null,segment_id.eq.${id}`)
+      : Promise.resolve({ data: [] }),
     supabase.from("pitch_scores").select("offer_id,content_hash,levels,reasons,alerts,improvements,evaluator,evaluated_at").eq("segment_id", id),
   ]);
   const rows = ranking.filter((r) => buIds.has(r.bu.id));
@@ -90,7 +92,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   return (
     <RoundDeck
       segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final} canEditPlan={isAdmin || isLeader}
-      round={{ id: round.id, position: round.position, name: round.name, context: round.context, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
+      round={{ id: round.id, position: round.position, name: round.name, context: ROUND_CONTEXT_ENABLED ? round.context : null, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
       blocks={orderBlocks(((ctxR.data ?? []) as BlockRow[]).map(toBlock).filter((b): b is NonNullable<typeof b> => b !== null))}
       rows={deckRows} items={items} regional={regional} notes={(noteR.data?.notes as string | null) ?? ""} hasDraft={(draftR.data ?? []).length > 0}

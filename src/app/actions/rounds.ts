@@ -45,7 +45,7 @@ export async function setRoundPriorityNote(segmentId: string, offerId: string, n
   return done();
 }
 
-/** Marca (ou desmarca) o pitch como conferido com os números de mercado. */
+/** Marca (ou desmarca) o pitch como conferido na sala. */
 export async function setPitchValidated(segmentId: string, offerId: string, validated: boolean): Promise<SaveResult> {
   const { supabase } = await requireProfile();
   if (!isUuid(segmentId) || !isUuid(offerId)) return { ok: false, error: "Dados inválidos." };
@@ -173,7 +173,7 @@ export async function saveRounds(fd: FormData) {
     const limit = cleanLimit(fd.get(`limit_${id}`));
     if (!name) flash(back, "erro", "Toda rodada precisa de um nome.");
     if (limit === null) flash(back, "erro", `O limite de Foco de "${name}" deve ser um número de 1 a 50.`);
-    const { error } = await supabase.from("meeting_rounds").update({ name, foco_limit: limit, context: cleanContext(fd.get(`context_${id}`)), updated_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("meeting_rounds").update({ name, foco_limit: limit, ...(fd.has(`context_${id}`) ? { context: cleanContext(fd.get(`context_${id}`)) } : {}), updated_at: new Date().toISOString() }).eq("id", id);
     if (error) flash(back, "erro", error.message);
   }
   for (const b of bus.data ?? []) {

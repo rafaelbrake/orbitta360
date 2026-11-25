@@ -356,7 +356,7 @@ export function RoundDeck(p: RoundDeckProps) {
               </div>
               <label className="flex items-start gap-3 rounded-xl bg-white p-3 text-base font-medium">
                 <input type="checkbox" className="mt-0.5 size-6" disabled={!p.canEdit} checked={r.pitchValidated} onChange={(e) => void toggleValidated(r, e.target.checked)} />
-                <span>Pitch validado com os números de mercado<span className="block text-sm font-normal text-(--ink-3)">Dores, proposta e cases conferidos na sala.</span></span>
+                <span>Pitch validado<span className="block text-sm font-normal text-(--ink-3)">Dores, proposta e cases conferidos na sala.</span></span>
               </label>
               <div><div className="mb-1 text-sm font-semibold text-(--forest)">O que disseram as regionais</div><div className="flex flex-wrap gap-1.5">{chips(r.signals)}</div></div>
               <p className="text-xs text-(--ink-3)">Pitch: {r.pitchSource === "lider" ? "versão do segmento" : r.pitchSource === "head" ? "texto do head" : "não escrito"}</p>

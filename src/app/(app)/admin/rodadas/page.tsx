@@ -6,14 +6,14 @@ import { Icon } from "@/components/Icon";
 import { SubmitButton } from "@/components/SubmitButton";
 import { Notice, PageHeader } from "@/components/ui";
 import { loadConfig } from "@/lib/data";
-import { DIRECTORS_ENABLED } from "@/lib/features";
+import { DIRECTORS_ENABLED, ROUND_CONTEXT_ENABLED } from "@/lib/features";
 import { roundDone, roundStats } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
 import { requireProfile } from "@/lib/session";
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
-/** Rodadas da reunião: a Diretoria define os grupos de BUs, o limite de Foco e o contexto, e acompanha cada segmento. */
+/** Rodadas da reunião: a Diretoria define os grupos de BUs e o limite de Foco, e acompanha cada segmento. */
 export default async function RodadasAdminPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const { supabase } = await requireProfile("admin");
@@ -36,7 +36,7 @@ export default async function RodadasAdminPage({ searchParams }: { searchParams:
   return (
     <div>
       <Flash ok={sp.ok} erro={sp.erro} />
-      <PageHeader title="Rodadas da reunião" subtitle="A dinâmica de consolidação roda em grupos de BUs: em cada rodada o líder de cada segmento decide o Foco, lapida o pitch e valida os pontos dos regionais." actions={<Link href="/admin/rodadas/contexto" className="btn"><Icon name="edit" size={18} />Telas de contexto</Link>} />
+      <PageHeader title="Rodadas da reunião" subtitle="A dinâmica de consolidação roda em grupos de BUs: em cada rodada o líder de cada segmento decide o Foco, lapida o pitch e valida os pontos dos regionais." actions={ROUND_CONTEXT_ENABLED ? <Link href="/admin/rodadas/contexto" className="btn"><Icon name="edit" size={18} />Telas de contexto</Link> : undefined} />
 
       <section className="mb-8">
         <h2 className="mb-2">Andamento por segmento</h2>
@@ -78,10 +78,12 @@ export default async function RodadasAdminPage({ searchParams }: { searchParams:
                 <div><label className="label" htmlFor={`name_${r.id}`}>Nome</label><input id={`name_${r.id}`} name={`name_${r.id}`} className="input" maxLength={80} required defaultValue={r.name} /></div>
                 <div><label className="label" htmlFor={`limit_${r.id}`}>Limite de Foco</label><input id={`limit_${r.id}`} name={`limit_${r.id}`} type="number" min={1} max={50} className="input" required defaultValue={r.focoLimit} /></div>
               </div>
-              <div>
-                <label className="label" htmlFor={`context_${r.id}`}>Contexto da rodada</label>
-                <textarea id={`context_${r.id}`} name={`context_${r.id}`} rows={4} maxLength={8000} className="input" defaultValue={r.context ?? ""} placeholder="Números de mercado, visão da empresa, o que discutir. Aparece como uma tela no início da rodada." />
-              </div>
+              {ROUND_CONTEXT_ENABLED && (
+                <div>
+                  <label className="label" htmlFor={`context_${r.id}`}>Contexto da rodada</label>
+                  <textarea id={`context_${r.id}`} name={`context_${r.id}`} rows={4} maxLength={8000} className="input" defaultValue={r.context ?? ""} placeholder="Números de mercado, visão da empresa, o que discutir. Aparece como uma tela no início da rodada." />
+                </div>
+              )}
             </section>
           ))}
         </div>
