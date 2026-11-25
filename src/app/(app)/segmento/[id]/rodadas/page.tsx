@@ -2,10 +2,12 @@ import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { Flash } from "@/components/Flash";
 import { Icon } from "@/components/Icon";
+import { SegmentThesisPanel } from "@/components/SegmentThesisPanel";
 import { StatTile } from "@/components/StatTile";
 import { BackLink, Notice, PageHeader } from "@/components/ui";
 import { loadRanking } from "@/lib/consolidated";
 import { fmtDate } from "@/lib/data";
+import { DIRECTORS_ENABLED, THESIS_ENABLED } from "@/lib/features";
 import { DECISION_LABEL, TYPE_LABEL, buildActionItems, customToItem, focoTotals, isDecision, roundDone, roundStats, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
 import type { Level } from "@/lib/segment";
@@ -20,13 +22,15 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
   const { supabase, config, segment } = await requireSegmentAccess(id);
   const rounds = await loadRounds(supabase);
 
-  const [ranking, prR, mmtR, planR, newR] = await Promise.all([
+  const [ranking, prR, mmtR, planR, newR, stR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,round_id,level,pitch_validated").eq("segment_id", id),
     supabase.from("mmt_records").select("id,type,bu_id,offer_id,regional,priority,headline,evidence,action,indicator,audience").eq("segment_id", id),
     supabase.from("mmt_action_plan").select("record_id,decision,owner,due_date,note").eq("segment_id", id),
     supabase.from("round_action_items").select("id,round_id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).order("created_at"),
+    supabase.from("segment_strategies").select("thesis,message,status").eq("segment_id", id).maybeSingle(),
   ]);
+  const strategy = stR.data as { thesis: string | null; message: string | null; status: string } | null;
   const newItems = (newR.data ?? []) as (RoundActionItemRow & { round_id: string })[];
   const prio = new Map((prR.data ?? []).map((r) => [r.offer_id as string, { level: r.level as Level, pitchValidated: r.pitch_validated === true }]));
   const buCode = new Map(config.bus.map((b) => [b.id, b.code]));
@@ -84,6 +88,10 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
             );
           })}
         </div>
+      )}
+
+      {DIRECTORS_ENABLED && rounds.length > 0 && (
+        <SegmentThesisPanel segmentId={id} initial={{ thesis: strategy?.thesis ?? "", message: strategy?.message ?? "" }} readOnly={strategy?.status === "final"} canGenerate={THESIS_ENABLED} focoCount={totals.foco} />
       )}
 
       <section className="mt-8">

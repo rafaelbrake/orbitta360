@@ -19,3 +19,6 @@ export const ROUND_CONTEXT_ENABLED = process.env.ENABLE_ROUND_CONTEXT === "true"
  * Sem ANTHROPIC_API_KEY, nenhum texto sai do sistema. A gravação da nota usa a chave de serviço do Supabase.
  */
 export const PITCH_EVALUATOR_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+/** Botão "Gerar tese com IA": basta a chave da Anthropic (quem grava o texto é o líder, com o próprio acesso). */
+export const THESIS_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY);
