@@ -22,15 +22,17 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
   const { supabase, config, segment } = await requireSegmentAccess(id);
   const rounds = await loadRounds(supabase);
 
-  const [ranking, prR, mmtR, planR, newR, stR] = await Promise.all([
+  const [ranking, prR, mmtR, planR, newR, stR, aiR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,round_id,level,pitch_validated").eq("segment_id", id),
     supabase.from("mmt_records").select("id,type,bu_id,offer_id,regional,priority,headline,evidence,action,indicator,audience").eq("segment_id", id),
     supabase.from("mmt_action_plan").select("record_id,decision,owner,due_date,note").eq("segment_id", id),
     supabase.from("round_action_items").select("id,round_id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).order("created_at"),
-    supabase.from("segment_strategies").select("thesis,message,status").eq("segment_id", id).maybeSingle(),
+    supabase.from("segment_strategies").select("thesis,message").eq("segment_id", id).maybeSingle(),
+    supabase.from("segment_ai_texts").select("thesis,message").eq("segment_id", id).maybeSingle(),
   ]);
-  const strategy = stR.data as { thesis: string | null; message: string | null; status: string } | null;
+  const manual = stR.data as { thesis: string | null; message: string | null } | null;
+  const aiTexts = aiR.data as { thesis: string | null; message: string | null } | null;
   const newItems = (newR.data ?? []) as (RoundActionItemRow & { round_id: string })[];
   const prio = new Map((prR.data ?? []).map((r) => [r.offer_id as string, { level: r.level as Level, pitchValidated: r.pitch_validated === true }]));
   const buCode = new Map(config.bus.map((b) => [b.id, b.code]));
@@ -91,7 +93,7 @@ export default async function RodadasDoSegmentoPage({ params, searchParams }: { 
       )}
 
       {DIRECTORS_ENABLED && rounds.length > 0 && (
-        <SegmentThesisPanel segmentId={id} initial={{ thesis: strategy?.thesis ?? "", message: strategy?.message ?? "" }} readOnly={strategy?.status === "final"} canGenerate={THESIS_ENABLED} focoCount={totals.foco} />
+        <SegmentThesisPanel segmentId={id} initial={{ thesis: aiTexts?.thesis ?? "", message: aiTexts?.message ?? "" }} manual={{ thesis: manual?.thesis ?? "", message: manual?.message ?? "" }} canGenerate={THESIS_ENABLED} focoCount={totals.foco} />
       )}
 
       <section className="mt-8">

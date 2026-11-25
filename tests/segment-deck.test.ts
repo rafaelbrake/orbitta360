@@ -10,7 +10,7 @@ import type { PlanOffer, SegmentPlan } from "../src/lib/segment-plan";
 import { renderPptx } from "../src/lib/segment-pptx";
 import { THESIS_MODEL, THESIS_PROMPT, THESIS_SCHEMA, ThesisError, generateThesis, thesisMessage, type ThesisClient } from "../src/lib/thesis-generator";
 
-vi.mock("@/app/actions/segment", () => ({ saveStrategy: vi.fn() }));
+vi.mock("@/app/actions/segment", () => ({ saveAiTexts: vi.fn() }));
 import { SegmentThesisPanel } from "../src/components/SegmentThesisPanel";
 
 const long = (n: number) => "Processos manuais atrasam o atendimento e geram retrabalho na ponta. ".repeat(Math.ceil(n / 70)).slice(0, n);
@@ -26,7 +26,7 @@ const item = (n: number, over: Partial<ActionItem> = {}): ActionItem => ({
   action: long(200), indicator: null, audience: null, priority: null, decision: "validado", owner: "Fulana Responsável", due: "2027-01-31", note: "", ...over,
 });
 const plan = (over: Partial<SegmentPlan> = {}): SegmentPlan => ({
-  segmentName: "Saúde", leader: "Líder Teste", thesis: "Focar em dados.", message: "Abrir pela dor.", final: false,
+  segmentName: "Saúde", leader: "Líder Teste", thesis: "Focar em dados.", message: "Abrir pela dor.",
   rounds: [1, 2, 3, 4].map((p) => ({
     id: `r${p}`, position: p, name: `Grupo ${p}`, buCodes: ["ITS", "CYB"], foco: [1, 2, 3, 4, 5].map((i) => offer(p * 10 + i)), apoio: ["Apoiada"], fora: ["Descartada"],
     items: [item(p * 10 + 1), item(p * 10 + 2, { custom: true, owner: "", due: "" })],
@@ -130,17 +130,23 @@ describe("tese com IA", () => {
 
 describe("painel de tese e apresentação", () => {
   const html = (over: Partial<Parameters<typeof SegmentThesisPanel>[0]> = {}) =>
-    renderToString(createElement(SegmentThesisPanel, { segmentId: "seg", initial: { thesis: "Minha tese", message: "" }, readOnly: false, canGenerate: true, focoCount: 3, ...over }));
+    renderToString(createElement(SegmentThesisPanel, { segmentId: "seg", initial: { thesis: "Tese da IA", message: "" }, manual: { thesis: "Escrita à mão", message: "" }, canGenerate: true, focoCount: 3, ...over }));
 
   it("mostra gerar, salvar e baixar", () => {
     const h = html();
-    for (const t of ["Gerar tese com IA", "Salvar tese", "Baixar apresentação (PPT)", "Minha tese", 'href="/segmento/seg/rodadas/pptx"']) expect(h).toContain(t);
+    for (const t of ["Gerar tese com IA", "Salvar texto", "Baixar apresentação (PPT)", "Tese da IA", 'href="/segmento/seg/rodadas/pptx"']) expect(h).toContain(t);
   });
-  it("sem chave não oferece a IA; travado só baixa", () => {
-    expect(html({ canGenerate: false })).not.toContain("Gerar tese com IA");
-    const locked = html({ readOnly: true });
-    expect(locked).not.toContain("Gerar tese com IA");
-    expect(locked).not.toContain("Salvar tese");
-    expect(locked).toContain("Baixar apresentação (PPT)");
+  it("o texto escrito à mão aparece só para consulta, fora dos campos que vão para o PPT", () => {
+    const h = html();
+    expect(h).toContain("Ver o que o segmento escreveu à mão");
+    expect(h).toContain("Escrita à mão");
+    for (const area of h.match(/<textarea[\s\S]*?<\/textarea>/g) ?? []) expect(area).not.toContain("Escrita à mão");
+    expect(html({ manual: { thesis: " ", message: "" } })).not.toContain("Ver o que o segmento");
+  });
+  it("sem chave não oferece a IA, mas o texto continua editável", () => {
+    const h = html({ canGenerate: false, initial: { thesis: "", message: "" } });
+    expect(h).not.toContain("Gerar tese com IA");
+    expect(h).toContain("Salvar texto");
+    expect(h).toContain("PPT sai sem o slide de tese");
   });
 });

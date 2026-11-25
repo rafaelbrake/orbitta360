@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { saveStrategy } from "@/app/actions/segment";
+import { saveAiTexts } from "@/app/actions/segment";
 import { Icon } from "@/components/Icon";
 
 interface Texts { thesis: string; message: string }
 
 /**
- * Fechamento do segmento: a tese (escrita pelo líder ou a partir de um rascunho da IA) e o download da apresentação.
- * Aqui nada salva sozinho: o rascunho da IA só vai para o sistema quando o líder clica em Salvar.
+ * Fechamento do segmento: os textos da apresentação (rascunho da IA, que o segmento ajusta) e o download do PPT.
+ * São campos próprios: o que foi escrito à mão na tela do segmento aparece só para consulta e nunca é alterado aqui.
+ * O rascunho da IA é gravado quando o líder clica em Salvar ou em Baixar.
  */
-export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, focoCount }: {
-  segmentId: string; initial: Texts; readOnly: boolean; canGenerate: boolean; focoCount: number;
+export function SegmentThesisPanel({ segmentId, initial, manual, canGenerate, focoCount }: {
+  segmentId: string; initial: Texts; manual: Texts; canGenerate: boolean; focoCount: number;
 }) {
   const [saved, setSaved] = useState(initial);
   const [v, setV] = useState(initial);
@@ -29,6 +30,7 @@ export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, 
   }, [dirty]);
 
   async function generate() {
+    if ((v.thesis.trim() || v.message.trim()) && !window.confirm("Gerar de novo substitui o texto que está nestes dois campos. O que o segmento escreveu à mão não muda. Continuar?")) return;
     setBusy("gerar");
     setError(null);
     try {
@@ -45,25 +47,40 @@ export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, 
     }
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setBusy("salvar");
     setError(null);
     const values = v;
     try {
-      const r = await saveStrategy(segmentId, values);
+      const r = await saveAiTexts(segmentId, values);
       if (!r.ok) setError(r.error ?? "Não foi possível salvar.");
       else { setSaved(values); setDraft(false); }
+      return r.ok;
     } catch {
       setError("Não foi possível salvar. Atualize a página e tente de novo; copie o texto antes.");
+      return false;
     } finally {
       setBusy(null);
     }
   }
 
+  const url = `/segmento/${segmentId}/rodadas/pptx`;
+  /** O PPT sai do que está salvo: se houver texto novo na tela, salva antes de baixar. */
+  async function download(e: React.MouseEvent) {
+    if (busy) return e.preventDefault();
+    if (!dirty) return;
+    e.preventDefault();
+    if (!(await save())) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "";
+    a.click();
+  }
+
   const field = (key: keyof Texts, label: string, placeholder: string) => (
     <div>
       <label className="label" htmlFor={`tese-${key}`}>{label}</label>
-      <textarea id={`tese-${key}`} rows={8} maxLength={4000} className="input" placeholder={placeholder} value={v[key]} readOnly={readOnly} disabled={busy === "gerar"}
+      <textarea id={`tese-${key}`} rows={8} maxLength={4000} className="input" placeholder={placeholder} value={v[key]} readOnly={busy === "salvar"} disabled={busy === "gerar"}
         onChange={(e) => setV((p) => ({ ...p, [key]: e.target.value }))} />
     </div>
   );
@@ -71,11 +88,9 @@ export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, 
   return (
     <section className="card mt-8 !p-5" aria-label="Tese e apresentação do segmento">
       <h2 className="mb-1">Tese e apresentação do segmento</h2>
-      <p className="mb-4 text-sm text-(--ink-3)">Depois das rodadas: feche a tese, salve e baixe o PPT para apresentar. São os mesmos textos de Tese e Mensagem aos vendedores da tela do segmento.</p>
+      <p className="mb-4 text-sm text-(--ink-3)">Depois das rodadas: gere o texto com a IA, ajuste e baixe o PPT. O que foi escrito à mão na tela do segmento continua guardado, sem alteração.</p>
 
-      {readOnly && <p className="mb-3 rounded-xl bg-(--accent-100) p-3 text-sm text-(--accent-800)">Versão final travada: para mudar a tese, a Diretoria Corporativa precisa reabrir. O PPT pode ser baixado normalmente.</p>}
-
-      {!readOnly && canGenerate && (
+      {canGenerate && (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <button type="button" className="btn" onClick={() => void generate()} disabled={busy !== null || focoCount === 0}>
             <Icon name="edit" size={18} />{busy === "gerar" ? "Escrevendo… (até 2 minutos)" : "Gerar tese com IA"}
@@ -88,9 +103,19 @@ export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, 
       {draft && <p role="status" className="mb-3 rounded-xl bg-(--accent-100) p-3 text-sm text-(--accent-800)">Rascunho da IA, ainda não salvo. Revise, ajuste e clique em Salvar.</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {field("thesis", "Tese: onde vamos focar e por quê", "Em 3 a 5 linhas: o que o segmento vai priorizar em 2027 e o que ficou de fora.")}
-        {field("message", "Mensagem aos vendedores", "O que o vendedor precisa entender e fazer.")}
+        {field("thesis", "Tese para o PPT: onde vamos focar e por quê", "Gere com a IA e ajuste aqui.")}
+        {field("message", "Mensagem aos vendedores para o PPT", "Gere com a IA e ajuste aqui.")}
       </div>
+
+      {(manual.thesis.trim() || manual.message.trim()) && (
+        <details className="mt-3 rounded-xl border border-(--line) p-3 text-sm">
+          <summary className="cursor-pointer font-semibold text-(--forest)">Ver o que o segmento escreveu à mão (não vai para o PPT)</summary>
+          <div className="mt-2 grid gap-4 md:grid-cols-2">
+            <div><div className="eyebrow mb-1">Tese</div><p className="whitespace-pre-wrap">{manual.thesis.trim() || "Não escrita."}</p></div>
+            <div><div className="eyebrow mb-1">Mensagem aos vendedores</div><p className="whitespace-pre-wrap">{manual.message.trim() || "Não escrita."}</p></div>
+          </div>
+        </details>
+      )}
 
       {points.length > 0 && (
         <div className="mt-4 rounded-xl border border-(--line) bg-(--brand-50) p-3">
@@ -100,11 +125,11 @@ export function SegmentThesisPanel({ segmentId, initial, readOnly, canGenerate, 
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        {!readOnly && <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy !== null || !dirty}><Icon name="task_alt" size={18} />{busy === "salvar" ? "Salvando…" : "Salvar tese"}</button>}
-        {!readOnly && dirty && <button type="button" className="btn btn-ghost" onClick={() => { setV(saved); setDraft(false); setError(null); }} disabled={busy !== null}>Voltar ao texto salvo</button>}
+        <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={busy !== null || !dirty}><Icon name="task_alt" size={18} />{busy === "salvar" ? "Salvando…" : "Salvar texto"}</button>
+        {dirty && <button type="button" className="btn btn-ghost" onClick={() => { setV(saved); setDraft(false); setError(null); }} disabled={busy !== null}>Voltar ao texto salvo</button>}
         {/* link comum, sem Link: é um download, não uma navegação */}
-        <a href={`/segmento/${segmentId}/rodadas/pptx`} className="btn" download><Icon name="download" size={18} />Baixar apresentação (PPT)</a>
-        <span className="text-sm text-(--ink-3)" role="status">{dirty ? "Há texto não salvo: o PPT usa o que está salvo." : "O PPT sai com o que está salvo agora."}</span>
+        <a href={url} className="btn" download onClick={(e) => void download(e)} aria-disabled={busy !== null}><Icon name="download" size={18} />Baixar apresentação (PPT)</a>
+        <span className="text-sm text-(--ink-3)" role="status">{dirty ? "Ao baixar, o texto da tela é salvo antes." : saved.thesis.trim() || saved.message.trim() ? "O PPT sai com estes textos." : "Sem texto aqui, o PPT sai sem o slide de tese."}</span>
       </div>
     </section>
   );

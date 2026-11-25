@@ -17,7 +17,9 @@ export interface PlanRound {
   items: ActionItem[];
 }
 export interface SegmentPlan {
-  segmentName: string; leader: string | null; thesis: string; message: string; final: boolean;
+  segmentName: string; leader: string | null;
+  /** textos da apresentação (rascunho da IA revisado), não os escritos à mão na tela do segmento */
+  thesis: string; message: string;
   rounds: PlanRound[];
   regional: { regional: string; works: string | null; not_works: string | null }[];
 }
@@ -34,10 +36,10 @@ function must<T>(r: { data: T; error: { message: string } | null }): T {
 export async function loadSegmentPlan(supabase: SupabaseClient, config: Config, segment: Segment): Promise<SegmentPlan> {
   const id = segment.id;
   const rounds = await loadRounds(supabase);
-  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, newR] = await Promise.all([
+  const [ranking, prR, textR, headR, leaderR, viewsR, mmtR, planR, newR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,round_id,level,note").eq("segment_id", id),
-    supabase.from("segment_strategies").select("thesis,message,status").eq("segment_id", id).maybeSingle(),
+    supabase.from("segment_ai_texts").select("thesis,message").eq("segment_id", id).maybeSingle(),
     supabase.from("pitches").select("*").eq("segment_id", id),
     supabase.from("segment_pitches").select("*").eq("segment_id", id),
     supabase.from("regional_views").select("regional,works,not_works").eq("segment_id", id),
@@ -46,7 +48,7 @@ export async function loadSegmentPlan(supabase: SupabaseClient, config: Config, 
     supabase.from("round_action_items").select("id,round_id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).order("created_at"),
   ]);
 
-  const strategy = must(stR) as { thesis: string | null; message: string | null; status: string } | null;
+  const texts = must(textR) as { thesis: string | null; message: string | null } | null;
   const prio = new Map((must(prR) as Row[]).map((r) => [`${r.round_id}:${r.offer_id}`, { level: r.level as Level, note: (r.note as string | null) ?? null }]));
   const head = new Map((must(headR) as Row[]).map((r) => [r.offer_id as string, r as unknown as PitchData]));
   const leader = new Map((must(leaderR) as Row[]).map((r) => [r.offer_id as string, r as unknown as PitchData]));
@@ -61,7 +63,7 @@ export async function loadSegmentPlan(supabase: SupabaseClient, config: Config, 
   );
 
   return {
-    segmentName: segment.name, leader: segment.leader ?? null, thesis: strategy?.thesis ?? "", message: strategy?.message ?? "", final: strategy?.status === "final",
+    segmentName: segment.name, leader: segment.leader ?? null, thesis: texts?.thesis ?? "", message: texts?.message ?? "",
     rounds: rounds.map((round) => {
       const buIds = new Set(round.buIds);
       const foco: PlanOffer[] = [], apoio: string[] = [], fora: string[] = [];

@@ -29,6 +29,21 @@ export async function saveStrategy(segmentId: string, v: { thesis: string; messa
   return { ok: true, savedAt: new Date().toISOString() };
 }
 
+/**
+ * Tese e mensagem da apresentação (as da IA, já revisadas). Ficam em tabela própria: salvar aqui nunca mexe
+ * no que o líder escreveu à mão em segment_strategies.
+ */
+export async function saveAiTexts(segmentId: string, v: { thesis: string; message: string }): Promise<SaveResult> {
+  const { supabase } = await requireProfile();
+  if (!isUuid(segmentId)) return { ok: false, error: "Dados inválidos." };
+  const { data, error } = await supabase.from("segment_ai_texts")
+    .upsert({ segment_id: segmentId, thesis: cleanText(v.thesis), message: cleanText(v.message) }, { onConflict: "segment_id" })
+    .select("segment_id");
+  if (error && error.code !== "42501" && !/row-level security/i.test(error.message)) return { ok: false, error: error.message };
+  if (error || !data?.length) return { ok: false, error: "Só a Diretoria Corporativa e o líder do segmento podem salvar." };
+  return { ok: true, savedAt: new Date().toISOString() };
+}
+
 /** Define (ou limpa, com level = null) o nível de uma oferta no segmento. O limite de Foco é do banco. */
 export async function setPriority(segmentId: string, offerId: string, level: Level | null, note?: string | null): Promise<SaveResult> {
   const { supabase } = await requireProfile();

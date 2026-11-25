@@ -82,6 +82,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0016_round_context.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0017_plan_always_editable.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0018_pitch_scores.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0019_segment_ai_texts.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1489,5 +1490,31 @@ describe("nota do pitch: a Diretoria grava; o líder lê só as do próprio segm
     expect(await as(ID.diretor, "update pitch_scores set evaluator='eu' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
     expect(await as(ID.diretor, "delete from pitch_scores where offer_id=$1 returning 1", [offer])).toHaveLength(0);
     await fails(ID.headLBL, insert, [segId["Governo"], offer, hash]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Textos da apresentação (migration 0019)                             */
+/* ------------------------------------------------------------------ */
+describe("tese e mensagem da apresentação: campos próprios, sem mexer no que foi escrito à mão", () => {
+  const saude = () => segId["Saúde"];
+  const upsert = "insert into segment_ai_texts (segment_id,thesis,message) values ($1,$2,'m') on conflict (segment_id) do update set segment_id=excluded.segment_id, thesis=excluded.thesis, message=excluded.message returning 1";
+
+  it("o líder grava e regrava mesmo com a versão final travada; o texto manual não muda", async () => {
+    await sup("delete from segment_leaders where segment_id=$1", [saude()]);
+    await sup("insert into segment_leaders values ($1,$2)", [saude(), ID.diretor]);
+    await sup("delete from segment_strategies where segment_id=$1", [saude()]);
+    await sup("insert into segment_strategies (segment_id,thesis,message,status) values ($1,'Tese manual','Mensagem manual','final')", [saude()]);
+    expect(await as(ID.diretor, upsert, [saude(), "Texto da IA"])).toHaveLength(1);
+    expect(await as(ID.diretor, upsert, [saude(), "Texto ajustado"])).toHaveLength(1);
+    expect((await as<{ thesis: string; updated_by: string }>(ID.admin, "select thesis, updated_by from segment_ai_texts where segment_id=$1", [saude()]))[0]).toEqual({ thesis: "Texto ajustado", updated_by: ID.diretor });
+    expect((await sup<{ thesis: string; message: string }>("select thesis, message from segment_strategies where segment_id=$1", [saude()]))[0]).toEqual({ thesis: "Tese manual", message: "Mensagem manual" });
+  });
+
+  it("quem não lidera o segmento não lê nem grava", async () => {
+    expect(await as(ID.diretor3, "select 1 from segment_ai_texts")).toHaveLength(0);
+    await fails(ID.diretor3, upsert, [saude(), "invasor"]);
+    expect(await as(ID.diretor3, "update segment_ai_texts set thesis='invasor' returning 1")).toHaveLength(0);
+    await fails(ID.diretor, "delete from segment_ai_texts where segment_id=$1", [saude()]);
   });
 });
