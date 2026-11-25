@@ -61,7 +61,7 @@ function BlockSlide({ block }: { block: ContextBlock }) {
   const b = block.body;
   return (
     <div className="mx-auto max-w-7xl">
-      <h2 className="text-5xl text-(--forest)">{block.title}</h2>
+      <h2 className="!text-5xl text-(--forest)">{block.title}</h2>
       {block.subtitle && <p className="mt-2 text-xl text-(--ink-2)">{block.subtitle}</p>}
       <div className="mt-6">
         {"cards" in b && (
@@ -237,7 +237,7 @@ export function RoundDeck(p: RoundDeckProps) {
         return (
           <div className="flex h-full flex-col justify-center">
             <div className="text-lg uppercase tracking-[0.2em] text-(--brand-800)">Rodada {p.round.position} de {p.roundCount} · {p.segmentName}</div>
-            <h1 className="mt-3 text-7xl font-medium text-(--forest)">{p.round.name}</h1>
+            <h1 className="mt-3 !text-7xl font-medium text-(--forest)">{p.round.name}</h1>
             <div className="mt-5 h-1.5 w-24 rounded bg-(--accent)" />
             <p className="mt-6 text-2xl text-(--ink-2)">BUs desta rodada: <b className="text-(--forest)">{p.round.buCodes.join(" · ") || "nenhuma"}</b></p>
             {p.leader && <p className="mt-1 text-xl text-(--ink-3)">Líder do segmento: {p.leader}</p>}
@@ -256,7 +256,7 @@ export function RoundDeck(p: RoundDeckProps) {
       case "contexto":
         return (
           <div className="mx-auto max-w-5xl">
-            <h2 className="mb-6 text-5xl text-(--forest)">Contexto da rodada</h2>
+            <h2 className="mb-6 !text-5xl text-(--forest)">Contexto da rodada</h2>
             <p className="whitespace-pre-wrap text-[26px] leading-snug">{p.round.context}</p>
           </div>
         );
@@ -266,7 +266,7 @@ export function RoundDeck(p: RoundDeckProps) {
         return (
           <div className="mx-auto max-w-7xl">
             <div className="mb-3 flex flex-wrap items-center gap-3">
-              <h2 className="text-5xl text-(--forest)">Mesa de decisão</h2>{countBadges}
+              <h2 className="!text-5xl text-(--forest)">Mesa de decisão</h2>{countBadges}
             </div>
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <input type="search" aria-label="Buscar oferta" placeholder="Buscar oferta ou BU" className="input !w-64" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -333,7 +333,7 @@ export function RoundDeck(p: RoundDeckProps) {
           <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_22rem]">
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-2 text-base"><span className="badge !text-base bg-(--brand) text-white">Foco</span><span className="badge !text-base bg-(--brand-50) ring-1 ring-(--line)">{r.buCode}{r.code ? ` · ${r.code}` : ""}</span><span className="font-semibold tabular-nums">Nota {r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /></div>
-              <h2 className="text-5xl leading-tight text-(--forest)">{r.name}</h2>
+              <h2 className="!text-5xl !leading-tight text-(--forest)">{r.name}</h2>
               {(pt?.descricao ?? r.description ?? "").trim() && <p className="text-[21px] text-(--ink-2)">{pt?.descricao ?? r.description}</p>}
               {hasPitchContent(pt) && <PitchScorePanel score={r.pitchScore ?? null} />}
               {hasPitchContent(pt) ? (
@@ -367,7 +367,7 @@ export function RoundDeck(p: RoundDeckProps) {
       case "regioes":
         return (
           <div className="mx-auto max-w-7xl">
-            <h2 className="mb-5 text-5xl text-(--forest)">O que dizem as regiões</h2>
+            <h2 className="mb-5 !text-5xl text-(--forest)">O que dizem as regiões</h2>
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {p.regional.map((v) => (
                 <section key={v.regional} className="rounded-2xl border border-(--line) p-5">
@@ -385,7 +385,7 @@ export function RoundDeck(p: RoundDeckProps) {
         return (
           <div className="mx-auto max-w-7xl">
             <div className="mb-3 flex flex-wrap items-center gap-3">
-              <h2 className="text-5xl text-(--forest)">Plano de ação</h2>
+              <h2 className="!text-5xl text-(--forest)">Plano de ação</h2>
               <span className="badge !text-base bg-(--brand-50) text-(--ink-2)">{stats.acoesDecididas} de {stats.acoesTotal} com decisão</span>
               {canPlan && <button type="button" className="btn btn-primary ml-auto" onClick={() => setAdding((v) => !v)}><Icon name={adding ? "close" : "add"} size={18} />{adding ? "Cancelar" : "Incluir item"}</button>}
             </div>
@@ -489,7 +489,7 @@ export function RoundDeck(p: RoundDeckProps) {
         return (
           <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-2">
             <div>
-              <h2 className="mb-4 text-5xl text-(--forest)">Fechamento da rodada</h2>
+              <h2 className="mb-4 !text-5xl text-(--forest)">Fechamento da rodada</h2>
               <div className="mb-5 flex flex-wrap gap-2">{countBadges}</div>
               <h3 className="mb-2 text-2xl">Ofertas em Foco ({focos.length})</h3>
               {focos.length === 0 ? <p className="mb-4 text-lg text-(--ink-3)">Nenhuma oferta em Foco ainda.</p> : (
