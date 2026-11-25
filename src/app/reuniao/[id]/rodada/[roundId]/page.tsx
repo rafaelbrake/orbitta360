@@ -29,7 +29,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const round = rounds[pos];
   const buIds = new Set(round.buIds);
 
-  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR, ctxR, scoreR] = await Promise.all([
+  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR, ctxR, scoreR, evalR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,level,note,pitch_validated").eq("segment_id", id).eq("round_id", roundId),
     supabase.from("segment_strategies").select("status").eq("segment_id", id).maybeSingle(),
@@ -45,6 +45,8 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
       ? supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").eq("round_id", roundId).or(`segment_id.is.null,segment_id.eq.${id}`)
       : Promise.resolve({ data: [] }),
     supabase.from("pitch_scores").select("offer_id,content_hash,levels,reasons,alerts,improvements,evaluator,evaluated_at").eq("segment_id", id),
+    // justificativas dos heads (o ranking só traz as notas)
+    supabase.from("evaluations_scored").select("offer_id,e1,e2,e3,e4,e5,updated_at").eq("segment_id", id).in("bu_id", round.buIds),
   ]);
   const rows = ranking.filter((r) => buIds.has(r.bu.id));
   const offerIds = rows.map((r) => r.offerId);
@@ -60,18 +62,22 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const scores = new Map(((scoreR.data ?? []) as PitchScoreRow[]).map((s) => [s.offer_id, s]));
   const signals = new Map<string, { regional: string; type: string }[]>();
   for (const m of mmt) if (m.offer_id) signals.set(m.offer_id, [...(signals.get(m.offer_id) ?? []), { regional: m.regional || "—", type: m.type }]);
+  type EvalText = { offer_id: string; e1: string | null; e2: string | null; e3: string | null; e4: string | null; e5: string | null; updated_at: string | null };
+  const evalText = new Map(((evalR.data ?? []) as EvalText[]).map((e) => [e.offer_id, e]));
   const bandLabel = Object.fromEntries(config.bands.map((b) => [b.code, b.label]));
 
   const deckRows: RoundRow[] = rows.map((r) => {
     const pr = prio.get(r.offerId);
     const info = offerInfo.get(r.offerId);
     const { pitch, source } = effectivePitch(head.get(r.offerId), leader.get(r.offerId));
+    const ev = evalText.get(r.offerId);
     return {
       offerId: r.offerId, code: r.offerCode, name: r.offerName, buCode: r.bu.code, score: r.score, classCode: r.classCode, classLabel: bandLabel[r.classCode] ?? r.classCode,
       level: pr?.level ?? null, note: pr?.note ?? null, pitchValidated: pr?.pitch_validated ?? false,
       pitch, pitchSource: source, description: info?.description ?? null, revenueModel: info?.revenue_model ?? null, ticket: info?.ticket_medio != null ? Number(info.ticket_medio) : null,
       signals: signals.get(r.offerId) ?? [],
       pitchScore: toPitchScore(scores.get(r.offerId), pitch),
+      evaluation: { notes: r.notes, evidence: [ev?.e1 ?? null, ev?.e2 ?? null, ev?.e3 ?? null, ev?.e4 ?? null, ev?.e5 ?? null], specialistLed: r.specialistLed, updatedAt: ev?.updated_at ?? null },
     };
   });
 
@@ -95,6 +101,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
       round={{ id: round.id, position: round.position, name: round.name, context: ROUND_CONTEXT_ENABLED ? round.context : null, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
       blocks={orderBlocks(((ctxR.data ?? []) as BlockRow[]).map(toBlock).filter((b): b is NonNullable<typeof b> => b !== null))}
+      criteria={config.criteria}
       rows={deckRows} items={items} regional={regional} notes={(noteR.data?.notes as string | null) ?? ""} hasDraft={(draftR.data ?? []).length > 0}
       initialKey={typeof sp.s === "string" ? sp.s : undefined}
     />

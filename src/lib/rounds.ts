@@ -54,6 +54,8 @@ export interface RoundRow {
   signals: { regional: string; type: string }[];
   /** avaliação do pitch em vigor, quando houver */
   pitchScore?: PitchScore | null;
+  /** avaliação do head para o segmento: as 5 notas dos critérios e as justificativas, na ordem dos critérios */
+  evaluation?: { notes: (number | null)[]; evidence: (string | null)[]; specialistLed: boolean; updatedAt: string | null };
 }
 
 /** Um ponto da rodada: ou um ponto dos regionais (Manter / Mudar / Treinar) com a decisão tomada, ou um item novo incluído na sala. */

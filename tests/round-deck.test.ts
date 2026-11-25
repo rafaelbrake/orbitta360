@@ -9,6 +9,7 @@ vi.mock("@/app/actions/segment", () => ({ saveLeaderPitch: vi.fn() }));
 vi.mock("@/app/actions/bu", () => ({ savePitch: vi.fn() }));
 vi.mock("next/link", () => ({ default: (p: { href: string; children?: unknown }) => h("a", { href: p.href }, p.children as never) }));
 
+import { OfferEvaluation } from "../src/components/OfferEvaluation";
 import { RoundDeck, type RoundDeckProps } from "../src/components/RoundDeck";
 import type { ActionItem, RoundRow } from "../src/lib/rounds";
 
@@ -156,5 +157,26 @@ describe("botão de reavaliar a nota", () => {
     expect(at({ canReevaluate: true, rows: rows(score) })).not.toContain("Reavaliar nota");
     expect(at({ rows: rows({ ...score, stale: true }) })).not.toContain("Reavaliar nota");
     expect(at({ rows: rows(null) })).not.toContain("Avaliar nota");
+  });
+});
+
+describe("avaliação da oferta para o segmento", () => {
+  const criteria = [1, 2, 3, 4, 5].map((id) => ({ id, name: `Critério ${id}`, question: `Pergunta do critério ${id}?`, weight: 20, rubric: { "1": "um", "2": "dois", "3": "três", "4": "quatro", "5": "cinco" } }));
+  const evaluation = { notes: [5, 4, 3, 2, 1], evidence: ["Três clientes pediram", null, "", null, null], specialistLed: true, updatedAt: "2026-11-12T15:00:00Z" };
+  const view = (r: RoundRow) => renderToString(h(OfferEvaluation, { row: r, segmentName: "Varejo", criteria, chips: "Sul · Manter", level: "nível", onBack: () => {} })).replaceAll("<!-- -->", "");
+
+  it("mostra a nota de cada critério, o que ela significa, a evidência e o pitch", () => {
+    const html = view({ ...BASE.rows[0], evaluation });
+    for (const t of ["Avaliação para o segmento Varejo", "Critério 1", "Pergunta do critério 5?", "cinco", "um", "Três clientes pediram", "Venda liderada pelo especialista", "Nota 90 de 100", "12/11/2026", "Ruptura de gôndola", "Rede Alfa"]) expect(html).toContain(t);
+    expect(html.match(/Evidência:/g)).toHaveLength(1);
+  });
+  it("oferta sem pitch e sem detalhe avisa em vez de quebrar", () => {
+    const html = view(BASE.rows[2]);
+    expect(html).toContain("Os detalhes desta avaliação não foram encontrados.");
+    expect(html).toContain("O pitch desta oferta ainda não foi escrito.");
+  });
+  it("o nome da oferta na mesa e o botão na tela da oferta abrem a avaliação", () => {
+    expect(render({ initialKey: "mesa", criteria })).toContain("Ver a avaliação desta oferta para o segmento");
+    expect(render({ initialKey: "oferta:a", criteria })).toContain("Ver a avaliação");
   });
 });

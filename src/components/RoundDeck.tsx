@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { copyLeaderDraft, createActionItem, deleteActionItem, saveActionItem, saveRoundNotes, setPitchValidated, setRoundPriority, setRoundPriorityNote, updateActionItem } from "@/app/actions/rounds";
 import { saveLeaderPitch } from "@/app/actions/segment";
 import { Icon } from "@/components/Icon";
+import { OfferEvaluation, type EvaluationCriterion } from "@/components/OfferEvaluation";
 import { PitchForm, type PitchValues } from "@/components/PitchForm";
 import { PitchScorePanel } from "@/components/PitchScorePanel";
 import { SaveIndicator, useAutosave } from "@/components/useAutosave";
@@ -29,6 +30,8 @@ export interface RoundDeckProps {
   notes: string; hasDraft: boolean;
   /** telas de contexto (mercado, funil, faturamento…) desta rodada e deste segmento */
   blocks?: ContextBlock[];
+  /** critérios da pontuação, para mostrar a avaliação de cada oferta */
+  criteria?: EvaluationCriterion[];
   /** tela em que a apresentação abre (vem do endereço, para atualizar a página sem perder o lugar) */
   initialKey?: string;
 }
@@ -120,6 +123,9 @@ export function RoundDeck(p: RoundDeckProps) {
   const [key, setKey] = useState(p.initialKey || "abertura");
   const [full, setFull] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  // oferta com a avaliação aberta por cima da tela (a tela de baixo continua montada, com a rolagem onde estava)
+  const [viewing, setViewing] = useState<string | null>(null);
+  const focusPanel = useCallback((el: HTMLDivElement | null) => el?.focus(), []);
   const [q, setQ] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [onlyPending, setOnlyPending] = useState(false);
@@ -136,13 +142,15 @@ export function RoundDeck(p: RoundDeckProps) {
   const stats = roundStats(rows, items);
   const limit = p.round.focoLimit;
 
-  const go = useCallback((i: number) => { setEditing(null); setKey(slides[clampIndex(i, slides.length)].key); }, [slides]);
+  const go = useCallback((i: number) => { setEditing(null); setViewing(null); setKey(slides[clampIndex(i, slides.length)].key); }, [slides]);
   useEffect(() => {
     const u = new URL(window.location.href); u.searchParams.set("s", slide.key); window.history.replaceState(null, "", u);
   }, [slide.key]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      // com a avaliação aberta, as setas e o espaço rolam o texto em vez de trocar de tela
+      if (viewing && e.key.toLowerCase() !== "f") { if (e.key === "Escape") setViewing(null); return; }
       if (e.key.toLowerCase() === "f") { void toggleFull(); return; }
       const m = keyToMove(e.key, e.shiftKey);
       if (!m) return;
@@ -151,7 +159,7 @@ export function RoundDeck(p: RoundDeckProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, index, slides.length]);
+  }, [go, index, slides.length, viewing]);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", on);
@@ -287,6 +295,7 @@ export function RoundDeck(p: RoundDeckProps) {
           <div className="mx-auto max-w-7xl">
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <h2 className="!text-5xl text-(--forest)">Mesa de decisão</h2>{countBadges}
+              <span className="text-sm text-(--ink-3)">Clique no nome da oferta para ver a avaliação.</span>
             </div>
             <div className="mb-3 flex flex-wrap items-center gap-3">
               <input type="search" aria-label="Buscar oferta" placeholder="Buscar oferta ou BU" className="input !w-64" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -309,7 +318,7 @@ export function RoundDeck(p: RoundDeckProps) {
                   {shown.map((r) => (
                     <tr key={r.offerId}>
                       <td className="td tabular-nums text-(--ink-3)">{rows.indexOf(r) + 1}</td>
-                      <td className="td font-semibold text-(--forest)">{r.name}</td>
+                      <td className="td"><button type="button" className="text-left font-semibold text-(--forest) underline decoration-(--brand) underline-offset-4 hover:text-(--brand)" onClick={() => setViewing(r.offerId)} title="Ver a avaliação desta oferta para o segmento">{r.name}</button></td>
                       <td className="td">{r.buCode}</td>
                       <td className="td whitespace-nowrap"><b className="mr-2 tabular-nums">{r.score}</b><ClassBadge code={r.classCode} label={r.classLabel} /></td>
                       <td className="td"><div className="flex flex-wrap gap-1">{chips(r.signals)}</div></td>
@@ -352,7 +361,7 @@ export function RoundDeck(p: RoundDeckProps) {
         return (
           <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_22rem]">
             <div className="space-y-5">
-              <div className="flex flex-wrap items-center gap-2 text-base"><span className="badge !text-base bg-(--brand) text-white">Foco</span><span className="badge !text-base bg-(--brand-50) ring-1 ring-(--line)">{r.buCode}{r.code ? ` · ${r.code}` : ""}</span><span className="font-semibold tabular-nums">Nota {r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /></div>
+              <div className="flex flex-wrap items-center gap-2 text-base"><span className="badge !text-base bg-(--brand) text-white">Foco</span><span className="badge !text-base bg-(--brand-50) ring-1 ring-(--line)">{r.buCode}{r.code ? ` · ${r.code}` : ""}</span><span className="font-semibold tabular-nums">Nota {r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /><button type="button" className="btn btn-sm" onClick={() => setViewing(r.offerId)}><Icon name="visibility" size={16} />Ver a avaliação</button></div>
               <h2 className="!text-5xl !leading-tight text-(--forest)">{r.name}</h2>
               {(pt?.descricao ?? r.description ?? "").trim() && <p className="text-[21px] text-(--ink-2)">{pt?.descricao ?? r.description}</p>}
               {hasPitchContent(pt) && <PitchScorePanel score={r.pitchScore ?? null} reevaluation={p.canReevaluate ? { ...(evals[r.offerId] ?? { busy: false }), run: () => void reevaluatePitch(r) } : undefined} />}
@@ -548,18 +557,27 @@ export function RoundDeck(p: RoundDeckProps) {
     }
   };
 
+  const viewed = viewing ? rows.find((r) => r.offerId === viewing) : undefined;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white text-(--ink)">
       <header className="flex items-center gap-3 border-b border-(--line) px-6 py-3">
         <Link href={`/segmento/${p.segmentId}/rodadas`} className="btn btn-sm"><Icon name="arrow_back" size={16} />Sair da rodada</Link>
-        <div className="min-w-0 flex-1 truncate font-semibold text-(--forest)">{p.segmentName} · Rodada {p.round.position}: {p.round.name} · {slide.title}</div>
+        <div className="min-w-0 flex-1 truncate font-semibold text-(--forest)">{p.segmentName} · Rodada {p.round.position}: {p.round.name} · {viewed ? "Avaliação da oferta" : slide.title}</div>
         {p.final && <span className="badge bg-(--brand) text-white">Versão final</span>}
         <span className="tabular-nums text-sm text-(--ink-3)" aria-live="polite">{slideCounter(index, slides.length)}</span>
         <button type="button" className="btn btn-sm" onClick={() => go(index - 1)} disabled={index === 0} aria-label="Tela anterior"><Icon name="chevron_left" size={18} /></button>
         <button type="button" className="btn btn-sm" onClick={() => go(index + 1)} disabled={index === slides.length - 1} aria-label="Próxima tela"><Icon name="chevron_right" size={18} /></button>
         <button type="button" className="btn btn-sm" onClick={() => void toggleFull()}>{full ? "Sair da tela cheia" : "Tela cheia (F)"}</button>
       </header>
-      <main className="flex-1 overflow-auto px-10 py-8" id="slide">{body()}</main>
+      <div className="relative min-h-0 flex-1">
+        <main className="isolate h-full overflow-auto px-10 py-8" id="slide" inert={!!viewed}>{body()}</main>
+        {viewed && (
+          <div key={viewed.offerId} className="absolute inset-0 z-10 overflow-auto bg-white px-10 py-8 !outline-none" role="dialog" aria-label={`Avaliação de ${viewed.name}`} tabIndex={-1} ref={focusPanel}>
+            <OfferEvaluation row={viewed} segmentName={p.segmentName} criteria={p.criteria ?? []} chips={chips(viewed.signals)} level={<div>{levelSelect(viewed)}{err(viewed.offerId)}</div>} onBack={() => setViewing(null)} />
+          </div>
+        )}
+      </div>
       <footer className="flex gap-1 border-t border-(--line) px-6 py-2" aria-label="Telas">
         {slides.map((s, i) => (
           <button key={s.key} type="button" onClick={() => go(i)} title={s.title} aria-label={s.title} aria-current={i === index ? "step" : undefined}
