@@ -13,7 +13,7 @@ import { clip, hasPitchContent, type PitchData } from "@/lib/book";
 import { clampIndex, indexOfKey, keyToMove, slideCounter } from "@/lib/meeting";
 import type { Cell, ContextBlock, Tone } from "@/lib/round-context";
 import { sanitizePitch } from "@/lib/pitch";
-import { pitchFingerprint, scoreTotal } from "@/lib/pitch-score";
+import { pitchFingerprint, scoreTotal, type PitchScore } from "@/lib/pitch-score";
 import { DECISIONS, DECISION_LABEL, DECISION_STYLE, TYPE_LABEL, buildRoundSlides, customToItem, isDecision, roundStats, type ActionItem, type Decision, type RoundRow } from "@/lib/rounds";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/segment";
 
@@ -21,6 +21,8 @@ export interface RoundDeckProps {
   segmentId: string; segmentName: string; leader: string | null; final: boolean; canEdit: boolean;
   /** o plano de ação não trava com a versão final: quem pode decidir e incluir itens (por padrão, igual a canEdit) */
   canEditPlan?: boolean;
+  /** há chave da API configurada e a pessoa pode pedir uma nova nota */
+  canReevaluate?: boolean;
   round: { id: string; position: number; name: string; context: string | null; focoLimit: number; buCodes: string[]; buOptions: { id: string; code: string }[] };
   roundCount: number; prevRoundId: string | null; nextRoundId: string | null;
   rows: RoundRow[]; items: ActionItem[]; regional: { regional: string; works: string | null; not_works: string | null }[];
@@ -125,6 +127,7 @@ export function RoundDeck(p: RoundDeckProps) {
   const emptyNew = { type: "", buId: "", headline: "", action: "", owner: "", due: "" };
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(emptyNew);
+  const [evals, setEvals] = useState<Record<string, { busy: boolean; error?: string; previousTotal?: number | null }>>({});
 
   const slides = useMemo(() => buildRoundSlides(rows, { hasContext: !!(p.round.context ?? "").trim(), hasRegional: p.regional.length > 0, blocks: (p.blocks ?? []).map((b) => ({ id: b.id, title: b.title })) }), [rows, p.round.context, p.regional.length, p.blocks]);
   const index = clampIndex(indexOfKey(slides, key), slides.length);
@@ -173,6 +176,23 @@ export function RoundDeck(p: RoundDeckProps) {
     if (!r.level) return;
     const res = await setRoundPriorityNote(p.segmentId, r.offerId, r.note ?? "");
     if (!res.ok) setErr(r.offerId, res.error);
+  }
+  async function reevaluatePitch(r: RoundRow) {
+    const offerId = r.offerId;
+    const sent = pitchFingerprint(r.pitch);
+    const setEval = (v: { busy: boolean; error?: string; previousTotal?: number | null }) => setEvals((m) => ({ ...m, [offerId]: v }));
+    setEval({ busy: true });
+    try {
+      const res = await fetch("/api/pitch-score", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ segmentId: p.segmentId, offerId }) });
+      const data = (await res.json()) as { ok: boolean; error?: string; score?: PitchScore; previousTotal?: number | null; unchanged?: boolean };
+      const score = data.score;
+      if (!data.ok || !score) { setEval({ busy: false, error: data.error ?? "Não foi possível reavaliar." }); return; }
+      // se o pitch foi editado enquanto a avaliação rodava, a nota já chega como de texto anterior
+      setRows((rs) => rs.map((x) => (x.offerId === offerId ? { ...x, pitchScore: { ...score, stale: pitchFingerprint(x.pitch) !== sent } } : x)));
+      setEval({ busy: false, previousTotal: data.unchanged ? null : data.previousTotal });
+    } catch {
+      setEval({ busy: false, error: "Sem resposta do sistema. Recarregue a página e tente de novo." });
+    }
   }
   async function toggleValidated(r: RoundRow, v: boolean) {
     patch(r.offerId, { pitchValidated: v });
@@ -335,7 +355,7 @@ export function RoundDeck(p: RoundDeckProps) {
               <div className="flex flex-wrap items-center gap-2 text-base"><span className="badge !text-base bg-(--brand) text-white">Foco</span><span className="badge !text-base bg-(--brand-50) ring-1 ring-(--line)">{r.buCode}{r.code ? ` · ${r.code}` : ""}</span><span className="font-semibold tabular-nums">Nota {r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /></div>
               <h2 className="!text-5xl !leading-tight text-(--forest)">{r.name}</h2>
               {(pt?.descricao ?? r.description ?? "").trim() && <p className="text-[21px] text-(--ink-2)">{pt?.descricao ?? r.description}</p>}
-              {hasPitchContent(pt) && <PitchScorePanel score={r.pitchScore ?? null} />}
+              {hasPitchContent(pt) && <PitchScorePanel score={r.pitchScore ?? null} reevaluation={p.canReevaluate ? { ...(evals[r.offerId] ?? { busy: false }), run: () => void reevaluatePitch(r) } : undefined} />}
               {hasPitchContent(pt) ? (
                 <div className="grid gap-5">
                   {pt?.dores && <Block title="Dores do cliente"><p className="whitespace-pre-wrap">{pt.dores}</p></Block>}

@@ -14,9 +14,11 @@
     "load:produtos": "tsx scripts/load-products.mts",
     "load:heads": "tsx scripts/load-heads.mts",
     "load:contexto": "tsx scripts/load-round-context.mts",
-    "load:score": "tsx scripts/load-pitch-scores.mts"
+    "load:score": "tsx scripts/load-pitch-scores.mts",
+    "calibrar:score": "tsx scripts/calibrate-evaluator.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "exceljs": "^4.4.0",

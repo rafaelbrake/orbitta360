@@ -13,3 +13,9 @@ export const DIRECTORS_ENABLED = process.env.ENABLE_DIRECTORS === "true";
  * para religar, defina ENABLE_ROUND_CONTEXT=true no ambiente e reinicie.
  */
 export const ROUND_CONTEXT_ENABLED = process.env.ENABLE_ROUND_CONTEXT === "true";
+
+/**
+ * Botão "Reavaliar nota" do pitch (chama o Claude pela API da Anthropic): só aparece quando há chave configurada.
+ * Sem ANTHROPIC_API_KEY, nenhum texto sai do sistema. A gravação da nota usa a chave de serviço do Supabase.
+ */
+export const PITCH_EVALUATOR_ENABLED = Boolean(process.env.ANTHROPIC_API_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);

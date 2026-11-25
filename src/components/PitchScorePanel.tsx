@@ -2,9 +2,29 @@ import { ALERT_LABEL, BAND_LABEL, BAND_STYLE, CRITERIA, pointsOf, scoreBand, sco
 
 const BAR = ["bg-red-600", "bg-red-600", "bg-(--accent)", "bg-(--brand)"];
 
+export interface Reevaluation { run: () => void; busy: boolean; error?: string; previousTotal?: number | null }
+
+/** O botão só aparece quando há o que avaliar: pitch sem nota ou alterado depois dela. */
+function ReevaluateButton({ r, label }: { r: Reevaluation; label: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" className="btn btn-primary" disabled={r.busy} onClick={r.run}>{r.busy ? "Avaliando…" : label}</button>
+      {r.busy && <span className="text-sm text-(--ink-3)" role="status">Pode levar até um minuto. Dá para seguir a conversa.</span>}
+      {r.error && <span className="text-sm text-(--danger)" role="alert">{r.error}</span>}
+    </div>
+  );
+}
+
 /** Nota do pitch na tela da oferta em Foco: total, os seis critérios com o porquê, alertas, melhorias e a régua. */
-export function PitchScorePanel({ score }: { score: PitchScore | null }) {
-  if (!score) return <p className="rounded-xl border border-dashed border-(--line-strong) px-4 py-3 text-base text-(--ink-3)">Este pitch ainda não foi avaliado.</p>;
+export function PitchScorePanel({ score, reevaluation }: { score: PitchScore | null; reevaluation?: Reevaluation }) {
+  if (!score) {
+    return (
+      <div className="space-y-2 rounded-xl border border-dashed border-(--line-strong) px-4 py-3 text-base text-(--ink-3)">
+        <p>Este pitch ainda não foi avaliado.</p>
+        {reevaluation && <ReevaluateButton r={reevaluation} label="Avaliar nota" />}
+      </div>
+    );
+  }
   const total = scoreTotal(score.levels);
   const band = scoreBand(total, score.alerts);
   const [y, m, d] = score.evaluatedAt.slice(0, 10).split("-");
@@ -17,6 +37,8 @@ export function PitchScorePanel({ score }: { score: PitchScore | null }) {
         {total >= 80 && score.alerts.length > 0 && <span className="text-sm text-(--ink-3)">A nota daria pronto, mas há alerta a resolver.</span>}
       </div>
       {score.stale && <p className="rounded-xl bg-amber-50 px-4 py-2 text-base font-semibold text-amber-900">O pitch mudou depois desta avaliação: a nota é do texto anterior.</p>}
+      {score.stale && reevaluation && <ReevaluateButton r={reevaluation} label="Reavaliar nota" />}
+      {!score.stale && reevaluation?.previousTotal != null && <p className="text-lg font-semibold text-(--forest)" role="status">Antes {reevaluation.previousTotal} → agora {total}</p>}
       <ul className="grid gap-x-6 gap-y-3 md:grid-cols-2">
         {CRITERIA.map((c) => {
           const level = score.levels[c.key];

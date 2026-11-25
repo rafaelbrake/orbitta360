@@ -140,3 +140,21 @@ describe("nota do pitch na tela da oferta em Foco", () => {
     expect(render({ initialKey: "resumo", rows: withScore() })).toContain("nota do pitch 83");
   });
 });
+
+describe("botão de reavaliar a nota", () => {
+  const score = {
+    levels: { dor: 2 as const, proposta: 2 as const, prova: 2 as const, abertura: 2 as const, perguntas: 2 as const, clareza: 2 as const },
+    reasons: {}, alerts: [], improvements: [], evaluator: "Claude", evaluatedAt: "2026-11-24T12:00:00Z", stale: false,
+  };
+  const rows = (pitchScore: typeof score | null) => BASE.rows.map((r) => (r.offerId === "a" ? { ...r, pitchScore } : r));
+  const at = (over: Partial<RoundDeckProps>) => render({ initialKey: "oferta:a", ...over });
+  it("aparece quando o pitch mudou ou não tem nota", () => {
+    expect(at({ canReevaluate: true, rows: rows({ ...score, stale: true }) })).toContain("Reavaliar nota");
+    expect(at({ canReevaluate: true, rows: rows(null) })).toContain("Avaliar nota");
+  });
+  it("não aparece com a nota em dia nem sem a chave configurada", () => {
+    expect(at({ canReevaluate: true, rows: rows(score) })).not.toContain("Reavaliar nota");
+    expect(at({ rows: rows({ ...score, stale: true }) })).not.toContain("Reavaliar nota");
+    expect(at({ rows: rows(null) })).not.toContain("Avaliar nota");
+  });
+});

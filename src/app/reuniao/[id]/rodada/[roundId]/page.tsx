@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { RoundDeck } from "@/components/RoundDeck";
 import { effectivePitch, type PitchData } from "@/lib/book";
 import { loadRanking } from "@/lib/consolidated";
-import { DIRECTORS_ENABLED, ROUND_CONTEXT_ENABLED } from "@/lib/features";
+import { DIRECTORS_ENABLED, PITCH_EVALUATOR_ENABLED, ROUND_CONTEXT_ENABLED } from "@/lib/features";
 import { isViewFilled } from "@/lib/regional";
 import { toPitchScore, type PitchScoreRow } from "@/lib/pitch-score-hash";
 import { buildActionItems, customToItem, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow, type RoundRow } from "@/lib/rounds";
@@ -91,7 +91,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
 
   return (
     <RoundDeck
-      segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final} canEditPlan={isAdmin || isLeader}
+      segmentId={id} segmentName={segment.name} leader={segment.leader} final={final} canEdit={(isAdmin || isLeader) && !final} canEditPlan={isAdmin || isLeader} canReevaluate={PITCH_EVALUATOR_ENABLED && (isAdmin || isLeader)}
       round={{ id: round.id, position: round.position, name: round.name, context: ROUND_CONTEXT_ENABLED ? round.context : null, focoLimit: round.focoLimit, buCodes: round.buIds.map((b) => buCodeById.get(b) ?? "—").sort(), buOptions: round.buIds.map((b) => ({ id: b, code: buCodeById.get(b) ?? "—" })).sort((a, b) => a.code.localeCompare(b.code)) }}
       roundCount={rounds.length} prevRoundId={rounds[pos - 1]?.id ?? null} nextRoundId={rounds[pos + 1]?.id ?? null}
       blocks={orderBlocks(((ctxR.data ?? []) as BlockRow[]).map(toBlock).filter((b): b is NonNullable<typeof b> => b !== null))}
