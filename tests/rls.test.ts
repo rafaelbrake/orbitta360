@@ -81,6 +81,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0015_round_action_items.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0016_round_context.sql"), "utf8"));
   await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0017_plan_always_editable.sql"), "utf8"));
+  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0018_pitch_scores.sql"), "utf8"));
 
   for (const b of bus) {
     const r = await sup<{ id: string }>("insert into bus (code,name,sort) values ($1,$2,$3) returning id", [b.code, b.name, b.sort]);
@@ -1458,5 +1459,35 @@ describe("telas de contexto das rodadas: números internos só para a Diretoria 
     await sup("insert into round_context_blocks (round_id,kind,title) values ($1,'text','some junto')", [r2]);
     await sup("delete from meeting_rounds where id=$1", [r2]);
     expect(await sup("select 1 from round_context_blocks where round_id=$1", [r2])).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+describe("nota do pitch: a Diretoria grava; o líder lê só as do próprio segmento", () => {
+  const saude = () => segId["Saúde"];
+  const varejo = () => segId["Varejo (inclui Atacado)"];
+  const hash = "a".repeat(64);
+  let offer = "";
+  const insert = "insert into pitch_scores (segment_id,offer_id,content_hash,levels,evaluator) values ($1,$2,$3,'{\"dor\":3}'::jsonb,'Claude')";
+
+  it("grava uma nota por segmento e oferta, com o formato validado", async () => {
+    offer = (await sup<{ id: string }>("insert into offers (bu_id,name) values ($1,'Oferta com nota') returning id", [buId.LBL]))[0].id;
+    await as(ID.admin, insert, [saude(), offer, hash]);
+    await as(ID.admin, insert, [varejo(), offer, hash]);
+    await fails(ID.admin, insert, [saude(), offer, hash]);
+    await fails(ID.admin, "update pitch_scores set content_hash='curto' where offer_id=$1", [offer]);
+    await fails(ID.admin, "update pitch_scores set alerts='{}'::jsonb where offer_id=$1", [offer]);
+  });
+
+  it("cada líder lê só o próprio segmento; heads e diretores sem liderança não leem; só a Diretoria escreve", async () => {
+    const seen = async (u: string) => (await as<{ segment_id: string }>(u, "select segment_id from pitch_scores where offer_id=$1", [offer])).map((r) => r.segment_id);
+    expect(await seen(ID.diretor)).toEqual([saude()]);
+    expect(await seen(ID.diretor2)).toEqual([varejo()]);
+    expect(await seen(ID.diretor3)).toEqual([]);
+    expect(await seen(ID.headLBL)).toEqual([]);
+    expect(await seen(ID.admin)).toHaveLength(2);
+    expect(await as(ID.diretor, "update pitch_scores set evaluator='eu' where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    expect(await as(ID.diretor, "delete from pitch_scores where offer_id=$1 returning 1", [offer])).toHaveLength(0);
+    await fails(ID.headLBL, insert, [segId["Governo"], offer, hash]);
   });
 });

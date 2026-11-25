@@ -6,12 +6,14 @@ import { copyLeaderDraft, createActionItem, deleteActionItem, saveActionItem, sa
 import { saveLeaderPitch } from "@/app/actions/segment";
 import { Icon } from "@/components/Icon";
 import { PitchForm, type PitchValues } from "@/components/PitchForm";
+import { PitchScorePanel } from "@/components/PitchScorePanel";
 import { SaveIndicator, useAutosave } from "@/components/useAutosave";
 import { ClassBadge } from "@/components/ui";
 import { clip, hasPitchContent, type PitchData } from "@/lib/book";
 import { clampIndex, indexOfKey, keyToMove, slideCounter } from "@/lib/meeting";
 import type { Cell, ContextBlock, Tone } from "@/lib/round-context";
 import { sanitizePitch } from "@/lib/pitch";
+import { pitchFingerprint, scoreTotal } from "@/lib/pitch-score";
 import { DECISIONS, DECISION_LABEL, DECISION_STYLE, TYPE_LABEL, buildRoundSlides, customToItem, isDecision, roundStats, type ActionItem, type Decision, type RoundRow } from "@/lib/rounds";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/segment";
 
@@ -313,7 +315,11 @@ export function RoundDeck(p: RoundDeckProps) {
                 initial={initial} prefilled={false} readOnly={!p.canEdit} backHref={`/segmento/${p.segmentId}`} backLabel="Voltar ao segmento"
                 save={async (values) => {
                   const res = await saveLeaderPitch({ segmentId: p.segmentId, offerId: r.offerId, values });
-                  if (res.ok) patch(r.offerId, { pitch: sanitizePitch(values) as unknown as PitchData, pitchSource: "lider" });
+                  if (res.ok) {
+                    const next = sanitizePitch(values) as unknown as PitchData;
+                    const changed = pitchFingerprint(next) !== pitchFingerprint(r.pitch);
+                    patch(r.offerId, { pitch: next, pitchSource: "lider", ...(changed && r.pitchScore ? { pitchScore: { ...r.pitchScore, stale: true } } : {}) });
+                  }
                   return res;
                 }}
               />
@@ -329,6 +335,7 @@ export function RoundDeck(p: RoundDeckProps) {
               <div className="flex flex-wrap items-center gap-2 text-base"><span className="badge !text-base bg-(--brand) text-white">Foco</span><span className="badge !text-base bg-(--brand-50) ring-1 ring-(--line)">{r.buCode}{r.code ? ` · ${r.code}` : ""}</span><span className="font-semibold tabular-nums">Nota {r.score}</span><ClassBadge code={r.classCode} label={r.classLabel} /></div>
               <h2 className="text-5xl leading-tight text-(--forest)">{r.name}</h2>
               {(pt?.descricao ?? r.description ?? "").trim() && <p className="text-[21px] text-(--ink-2)">{pt?.descricao ?? r.description}</p>}
+              {hasPitchContent(pt) && <PitchScorePanel score={r.pitchScore ?? null} />}
               {hasPitchContent(pt) ? (
                 <div className="grid gap-5">
                   {pt?.dores && <Block title="Dores do cliente"><p className="whitespace-pre-wrap">{pt.dores}</p></Block>}
@@ -491,7 +498,7 @@ export function RoundDeck(p: RoundDeckProps) {
                     <li key={r.offerId} className="flex items-center gap-2 text-lg">
                       <Icon name={r.pitchValidated ? "task_alt" : "schedule"} size={20} />
                       <button type="button" className="text-left font-semibold text-(--forest) hover:underline" onClick={() => setKey(`oferta:${r.offerId}`)}>{r.name}</button>
-                      <span className="text-sm text-(--ink-3)">{r.buCode}{r.pitchValidated ? " · pitch validado" : " · pitch a validar"}</span>
+                      <span className="text-sm text-(--ink-3)">{r.buCode}{r.pitchValidated ? " · pitch validado" : " · pitch a validar"}{r.pitchScore ? ` · nota do pitch ${scoreTotal(r.pitchScore.levels)}${r.pitchScore.stale ? " (texto anterior)" : ""}` : ""}</span>
                     </li>
                   ))}
                 </ul>

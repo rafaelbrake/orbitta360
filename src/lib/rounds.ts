@@ -1,5 +1,6 @@
 import type { Level } from "@/lib/segment";
 import type { PitchData } from "@/lib/book";
+import type { PitchScore } from "@/lib/pitch-score";
 
 /**
  * Rodadas da reunião de consolidação: cada rodada é um grupo de BUs. O líder do segmento decide Foco / Apoio / Fora
@@ -51,6 +52,8 @@ export interface RoundRow {
   level: Level | null; note: string | null; pitchValidated: boolean;
   pitch: PitchData | null; pitchSource: "lider" | "head" | null; description: string | null; revenueModel: string | null; ticket: number | null;
   signals: { regional: string; type: string }[];
+  /** avaliação do pitch em vigor, quando houver */
+  pitchScore?: PitchScore | null;
 }
 
 /** Um ponto da rodada: ou um ponto dos regionais (Manter / Mudar / Treinar) com a decisão tomada, ou um item novo incluído na sala. */

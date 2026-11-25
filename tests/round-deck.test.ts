@@ -118,3 +118,25 @@ describe("rodada da reunião: cada tela renderiza com o conteúdo certo", () => 
     for (const t of ["Contexto", "O que dizem as regiões"]) expect(html).not.toContain(t);
   });
 });
+
+describe("nota do pitch na tela da oferta em Foco", () => {
+  const score = {
+    levels: { dor: 3 as const, proposta: 3 as const, prova: 3 as const, abertura: 2 as const, perguntas: 2 as const, clareza: 1 as const },
+    reasons: { abertura: "Boa, mas longa." }, alerts: [{ tipo: "interno" as const, texto: "Valor de contrato no case." }], improvements: ["Cortar a abertura."],
+    evaluator: "Claude", evaluatedAt: "2026-11-24T12:00:00Z", stale: false,
+  };
+  const withScore = (over: Partial<typeof score> = {}) => BASE.rows.map((r) => (r.offerId === "a" ? { ...r, pitchScore: { ...score, ...over } } : r));
+  it("mostra total, faixa, critérios, alerta, melhoria e a régua", () => {
+    const html = render({ initialKey: "oferta:a", rows: withScore() });
+    for (const t of [">83<", "Ajustar antes de usar", "A nota daria pronto, mas há alerta a resolver.", "Dor e alvo", "20 de 20", "Boa, mas longa.", "1 alerta", "Informação interna", "Valor de contrato no case.", "O que melhorar", "Cortar a abertura.", "Como a nota é calculada", "24/11/2026"]) expect(html).toContain(t);
+    expect(html).not.toContain("a nota é do texto anterior");
+  });
+  it("sem alerta, 83 está pronto; pitch alterado é avisado", () => {
+    expect(render({ initialKey: "oferta:a", rows: withScore({ alerts: [] }) })).toContain("Pronto para o vendedor");
+    expect(render({ initialKey: "oferta:a", rows: withScore({ stale: true }) })).toContain("a nota é do texto anterior");
+  });
+  it("sem avaliação, a tela diz isso; o fechamento lista a nota de cada Foco", () => {
+    expect(render({ initialKey: "oferta:a" })).toContain("Este pitch ainda não foi avaliado.");
+    expect(render({ initialKey: "resumo", rows: withScore() })).toContain("nota do pitch 83");
+  });
+});

@@ -13,7 +13,8 @@
     "icons": "node scripts/gen-icons.mjs",
     "load:produtos": "tsx scripts/load-products.mts",
     "load:heads": "tsx scripts/load-heads.mts",
-    "load:contexto": "tsx scripts/load-round-context.mts"
+    "load:contexto": "tsx scripts/load-round-context.mts",
+    "load:score": "tsx scripts/load-pitch-scores.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

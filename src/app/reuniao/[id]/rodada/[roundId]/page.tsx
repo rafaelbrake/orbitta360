@@ -4,6 +4,7 @@ import { effectivePitch, type PitchData } from "@/lib/book";
 import { loadRanking } from "@/lib/consolidated";
 import { DIRECTORS_ENABLED } from "@/lib/features";
 import { isViewFilled } from "@/lib/regional";
+import { toPitchScore, type PitchScoreRow } from "@/lib/pitch-score-hash";
 import { buildActionItems, customToItem, type ActionPlanLite, type MmtRecordLite, type RoundActionItemRow, type RoundRow } from "@/lib/rounds";
 import { loadRounds } from "@/lib/rounds-data";
 import { orderBlocks, toBlock, type BlockRow } from "@/lib/round-context";
@@ -28,7 +29,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const round = rounds[pos];
   const buIds = new Set(round.buIds);
 
-  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR, ctxR] = await Promise.all([
+  const [ranking, prR, stR, headR, leaderR, viewsR, mmtR, planR, noteR, draftR, newR, ctxR, scoreR] = await Promise.all([
     loadRanking(supabase, config, { segmentId: id }),
     supabase.from("round_priorities").select("offer_id,level,note,pitch_validated").eq("segment_id", id).eq("round_id", roundId),
     supabase.from("segment_strategies").select("status").eq("segment_id", id).maybeSingle(),
@@ -41,6 +42,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
     supabase.from("segment_priorities").select("offer_id").eq("segment_id", id).limit(1),
     supabase.from("round_action_items").select("id,type,bu_id,headline,action,owner,due_date,note").eq("segment_id", id).eq("round_id", roundId).order("created_at"),
     supabase.from("round_context_blocks").select("id,round_id,segment_id,position,kind,title,subtitle,body,source,note").eq("round_id", roundId).or(`segment_id.is.null,segment_id.eq.${id}`),
+    supabase.from("pitch_scores").select("offer_id,content_hash,levels,reasons,alerts,improvements,evaluator,evaluated_at").eq("segment_id", id),
   ]);
   const rows = ranking.filter((r) => buIds.has(r.bu.id));
   const offerIds = rows.map((r) => r.offerId);
@@ -53,6 +55,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
   const head = new Map<string, PitchData>(((headR.data ?? []) as Row[]).map((r) => [r.offer_id as string, r as unknown as PitchData]));
   const leader = new Map<string, PitchData>(((leaderR.data ?? []) as Row[]).map((r) => [r.offer_id as string, r as unknown as PitchData]));
   const mmt = (mmtR.data ?? []) as MmtRecordLite[];
+  const scores = new Map(((scoreR.data ?? []) as PitchScoreRow[]).map((s) => [s.offer_id, s]));
   const signals = new Map<string, { regional: string; type: string }[]>();
   for (const m of mmt) if (m.offer_id) signals.set(m.offer_id, [...(signals.get(m.offer_id) ?? []), { regional: m.regional || "—", type: m.type }]);
   const bandLabel = Object.fromEntries(config.bands.map((b) => [b.code, b.label]));
@@ -66,6 +69,7 @@ export default async function RodadaPage({ params, searchParams }: { params: Pro
       level: pr?.level ?? null, note: pr?.note ?? null, pitchValidated: pr?.pitch_validated ?? false,
       pitch, pitchSource: source, description: info?.description ?? null, revenueModel: info?.revenue_model ?? null, ticket: info?.ticket_medio != null ? Number(info.ticket_medio) : null,
       signals: signals.get(r.offerId) ?? [],
+      pitchScore: toPitchScore(scores.get(r.offerId), pitch),
     };
   });
 
